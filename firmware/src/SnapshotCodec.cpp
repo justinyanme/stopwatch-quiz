@@ -11,17 +11,22 @@ uint32_t readU32(const uint8_t *b) {
 
 DecodeResult decodeSnapshot(const uint8_t *bytes, size_t len, Snapshot &out) {
     if (len < kHeaderSize) return DecodeResult::TooShort;
-    out.versionMajor  = bytes[0];
-    out.versionMinor  = bytes[1];
-    out.providerCount = bytes[2];
-    out.flags         = bytes[3];
-    out.capturedAt    = readU32(bytes + 4);
 
-    if (out.versionMajor > kVersionMajor) return DecodeResult::MajorVersionTooNew;
-    if (out.providerCount > kProviderCount) return DecodeResult::InvalidProviderCount;
-    if (len < (size_t)(kHeaderSize + out.providerCount * kPerProviderSize)) {
+    // Validate using local-only reads first; do NOT mutate `out` until checks pass.
+    uint8_t major = bytes[0];
+    uint8_t count = bytes[2];
+    if (major > kVersionMajor) return DecodeResult::MajorVersionTooNew;
+    if (count > kProviderCount) return DecodeResult::InvalidProviderCount;
+    if (len < (size_t)(kHeaderSize + count * kPerProviderSize)) {
         return DecodeResult::TooShort;
     }
+
+    // Validation passed — commit to `out`.
+    out.versionMajor  = major;
+    out.versionMinor  = bytes[1];
+    out.providerCount = count;
+    out.flags         = bytes[3];
+    out.capturedAt    = readU32(bytes + 4);
 
     for (uint8_t i = 0; i < out.providerCount; ++i) {
         const uint8_t *p = bytes + kHeaderSize + i * kPerProviderSize;
