@@ -65,8 +65,8 @@ public actor CodexbarClient {
             return .init(
                 providerID:     id,
                 status:         ProviderStatus(fromIndicator: p.status?.indicator),
-                sessionPct:     p.usage?.primary?.usedPercent.map { UInt8(clamping: $0) },
-                weekPct:        p.usage?.secondary?.usedPercent.map { UInt8(clamping: $0) },
+                sessionPct:     p.usage?.primary?.usedPercent.map { UInt8(max(0, min($0, 100))) },
+                weekPct:        p.usage?.secondary?.usedPercent.map { UInt8(max(0, min($0, 100))) },
                 sessionResetAt: p.usage?.primary?.resetsAt,
                 weekResetAt:    p.usage?.secondary?.resetsAt,
                 credits:        p.credits?.remaining,
