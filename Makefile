@@ -24,6 +24,7 @@ pair: build
 	./bridge/.build/release/stopwatch-bridge pair
 
 flash:
+	python3 firmware/tools/zap.py || true
 	cd firmware && pio run -t upload
 
 monitor:

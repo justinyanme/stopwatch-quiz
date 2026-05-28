@@ -1,6 +1,7 @@
 // firmware/src/Power.cpp
 #include "Power.h"
 #include <Arduino.h>
+#include <HWCDC.h>
 #include <esp_sleep.h>
 #include <M5Unified.h>
 
@@ -37,10 +38,19 @@ bool Power::shouldSleep() const {
 void Power::enterLightSleep() {
     waitForButtonsReleased();
     M5.Display.sleep();
-    uint64_t mask = (1ULL << kPinKeyA) | (1ULL << kPinKeyB);
-    esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW);
-    esp_light_sleep_start();
-    // Woke up.
+    if (HWCDC::isPlugged()) {
+        // USB-tethered: skip real light sleep so USB-CDC stays alive and
+        // host-side `make flash` can wake us via the magic-string RX handler.
+        // Trades battery savings for flashability — fine since USB is powering us.
+        while (!M5.BtnA.isPressed() && !M5.BtnB.isPressed()) {
+            delay(50);
+            M5.update();
+        }
+    } else {
+        uint64_t mask = (1ULL << kPinKeyA) | (1ULL << kPinKeyB);
+        esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW);
+        esp_light_sleep_start();
+    }
     M5.Display.wakeup();
     noteActivity();
 }

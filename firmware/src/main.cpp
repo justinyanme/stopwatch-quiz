@@ -1,6 +1,7 @@
 // firmware/src/main.cpp
 #include <Arduino.h>
 #include <M5Unified.h>
+#include "soc/rtc_cntl_reg.h"
 #include "App.h"
 #include "BleClient.h"
 #include "Buttons.h"
@@ -92,10 +93,36 @@ static void enterSleepAndRefreshOnWake() {
     renderCurrent();
 }
 
+// USB-CDC RX handler: looks for the magic flash trigger. When matched, reboots
+// into the ROM download bootloader so `pio run -t upload` can flash without a
+// manual BOOT-button long-press. Streaming match across chunks of available().
+static void onUsbCdcRx(void *, esp_event_base_t, int32_t, void *) {
+    static constexpr const char kMagic[] = "STOPWATCH-DL\n";
+    static constexpr int kMagicLen = sizeof(kMagic) - 1;
+    static int matched = 0;
+    while (Serial.available() > 0) {
+        int b = Serial.read();
+        if (b < 0) break;
+        if (b == kMagic[matched]) {
+            ++matched;
+            if (matched == kMagicLen) {
+                Serial.println("[stopwatch-fw] flash trigger received; entering download mode");
+                Serial.flush();
+                REG_WRITE(RTC_CNTL_OPTION1_REG, 0x1);   // force next reset into ROM dl
+                esp_restart();
+            }
+        } else {
+            // Reset, but accept this byte as a potential new start.
+            matched = (b == kMagic[0]) ? 1 : 0;
+        }
+    }
+}
+
 void setup() {
     delay(2000);  // Let USB-CDC enumerate before first Serial.print
     Serial.begin(115200);
     Serial.setTxTimeoutMs(0);   // never block waiting for the host CDC reader
+    Serial.onEvent(ARDUINO_HW_CDC_RX_EVENT, onUsbCdcRx);
     Serial.println("\n[stopwatch-fw] boot: setup() start");
     auto cfg = M5.config();
     // M5Unified's auto-detect doesn't recognize the StopWatch on our generic
