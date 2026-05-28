@@ -40,7 +40,7 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 |---|---|---|---|
 | 0 | uint8 | `versionMajor` | `0x01` for v1.x. Structural; bumping breaks the watch. |
 | 1 | uint8 | `versionMinor` | `0x00` for v1.0. Additive within a fixed major (new flag bits, enum values, or providers only — see §3.3). |
-| 2 | uint8 | `providerCount` | `0x03` for v1.x (always Codex + Claude + Gemini). |
+| 2 | uint8 | `providerCount` | `0x03` in v1.0 (Codex, Claude, Gemini); may increase under a minor bump per §3.3 (additional providers). |
 | 3 | uint8 | `flags` | bit0 = stale, bit1 = bridge_error, bit2 = provider_missing, bits 3-7 reserved (bridge MUST write 0; watch MUST ignore). |
 | 4 | uint32 | `capturedAt` | Unix seconds when bridge captured this snapshot. |
 
@@ -49,14 +49,14 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 | Offset | Type | Field | Meaning |
 |---|---|---|---|
 | 0 | uint8 | `providerID` | 1 = codex, 2 = claude, 3 = gemini |
-| 1 | uint8 | `status` | 0 = ok, 1 = warn, 2 = critical, 3 = error, 4 = disabled |
+| 1 | uint8 | `status` | 0 = ok, 1 = warn, 2 = critical, 3 = error, 4 = disabled. Unknown values: treat as `ok` (see §3.3). |
 | 2 | uint8 | `sessionPct` | 0–100; `0xFF` = unknown |
 | 3 | uint8 | `weekPct` | 0–100; `0xFF` = unknown |
 | 4 | uint32 | `sessionResetAt` | Unix seconds; `0` = unknown |
 | 8 | uint32 | `weekResetAt` | Unix seconds; `0` = unknown |
 | 12 | uint16 | `credits` | CodexBar credit balance × 10 (so 112.4 → 1124; one decimal of precision); `0xFFFF` = unknown. A value of `0x0000` means zero credits, not unknown. |
-| 14 | uint8 | `plan` | 0 = unknown, 1 = free, 2 = plus, 3 = pro, 4 = team, 5 = enterprise |
-| 15 | uint8 | `reserved` | `0x00` |
+| 14 | uint8 | `plan` | 0 = unknown, 1 = free, 2 = plus, 3 = pro, 4 = team, 5 = enterprise. Unknown values: treat as `unknown` (see §3.3). |
+| 15 | uint8 | `reserved` | bridge MUST write `0x00`; watch MUST ignore. |
 
 ### 3.3 Versioning rules
 
