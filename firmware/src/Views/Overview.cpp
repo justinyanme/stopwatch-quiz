@@ -7,6 +7,15 @@
 namespace stopwatch::views {
 
 namespace {
+const char *labelFor(ProviderID id) {
+    switch (id) {
+        case ProviderID::Codex:  return "CODEX";
+        case ProviderID::Claude: return "CLAUDE";
+        case ProviderID::Gemini: return "GEMINI";
+    }
+    return "?";
+}
+
 // Returns the provider in `snap` with the highest sessionPct, or nullptr if none.
 const ProviderSlot *worstOff(const Snapshot &snap) {
     const ProviderSlot *best = nullptr;
@@ -57,31 +66,58 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
     renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingInnerR,  theme::kRingStroke,
                       theme::kRingTrack, theme::kGemini, fractionOf(gemini));
 
-    // Center: worst-off provider's % in its color.
+    // Center gravity well — anchors the big metric, separates it from inner ring track.
+    c.fillCircle(theme::kCenterX, theme::kCenterY, theme::kRingInnerR - theme::kRingStroke - 6,
+                 theme::kCenterWell);
+
+    // Center: name + session % of the most-pressured provider.
     const auto *worst = worstOff(snap);
     c.setTextDatum(middle_center);
-    c.setTextColor(theme::kTextMuted);
-    c.setFont(&fonts::Font2);
-    c.drawString("Most used", theme::kCenterX, theme::kCenterY - 36);
 
     if (worst && worst->sessionPct.has_value()) {
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%u%%", worst->sessionPct.value());
+        c.setTextColor(theme::kTextMuted);
+        c.setFont(&fonts::Font2);
+        c.drawString(labelFor(worst->id), theme::kCenterX, theme::kCenterY - 32);
+
+        // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
+        char digits[6];
+        snprintf(digits, sizeof(digits), "%u", worst->sessionPct.value());
         c.setTextColor(theme::colorFor(worst->id));
+
         c.setFont(&fonts::Font7);
-        c.drawString(buf, theme::kCenterX, theme::kCenterY + 4);
+        int dw = c.textWidth(digits);
+        c.setFont(&fonts::Font4);
+        int pw = c.textWidth("%");
+        constexpr int kGap = 6;
+        int leftX = theme::kCenterX - (dw + kGap + pw) / 2;
+
+        c.setTextDatum(middle_left);
+        c.setFont(&fonts::Font7);
+        c.drawString(digits, leftX, theme::kCenterY + 8);
+        c.setFont(&fonts::Font4);
+        c.drawString("%", leftX + dw + kGap, theme::kCenterY + 18);
+        c.setTextDatum(middle_center);
     } else {
         c.setTextColor(theme::kTextMuted);
+        c.setFont(&fonts::Font2);
+        c.drawString("SESSION", theme::kCenterX, theme::kCenterY - 32);
         c.setFont(&fonts::Font4);
-        c.drawString("--", theme::kCenterX, theme::kCenterY + 4);
+        c.drawString("--", theme::kCenterX, theme::kCenterY + 8);
     }
 
-    // Bottom legend chips.
+    // Bottom strip: live session percentages, in provider colors. Same arrangement as rings (outer→inner).
     c.setFont(&fonts::Font2);
     int by = theme::kCenterY + theme::kRingOuterR - 36;
-    c.setTextColor(theme::kCodex);  c.drawString("\xE2\x97\x8F CX", theme::kCenterX - 60, by);
-    c.setTextColor(theme::kClaude); c.drawString("\xE2\x97\x8F CL", theme::kCenterX,      by);
-    c.setTextColor(theme::kGemini); c.drawString("\xE2\x97\x8F GM", theme::kCenterX + 60, by);
+    auto drawMetric = [&](int x, const ProviderSlot *p, uint32_t color) {
+        char buf[8];
+        if (p && p->sessionPct.has_value()) snprintf(buf, sizeof(buf), "%u%%", p->sessionPct.value());
+        else                                snprintf(buf, sizeof(buf), "--");
+        c.setTextColor(color);
+        c.drawString(buf, x, by);
+    };
+    drawMetric(theme::kCenterX - 70, codex,  theme::kCodex);
+    drawMetric(theme::kCenterX,      claude, theme::kClaude);
+    drawMetric(theme::kCenterX + 70, gemini, theme::kGemini);
 
     auto pill = pillFor(link, snap);
     renderer.drawPill(theme::kCenterX,

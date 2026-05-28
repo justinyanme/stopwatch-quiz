@@ -1,6 +1,7 @@
 // firmware/src/Renderer.cpp
 #include "Renderer.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace stopwatch {
@@ -25,25 +26,34 @@ void Renderer::drawRing(int cx, int cy, int radius, int stroke,
                         float fillFraction) {
     fillFraction = std::clamp(fillFraction, 0.0f, 1.0f);
     int innerR = radius - stroke;
-    // Track (full ring).
+    // Track (full ring, no caps needed — it's a closed loop).
     sprite_.fillArc(cx, cy, radius, innerR, 0, 360, trackColor);
-    // Fill from 12 o'clock clockwise.
-    if (fillFraction > 0.0f) {
-        float endDeg = 360.0f * fillFraction;
-        // LovyanGFX fillArc takes (startAngle, endAngle) in degrees with 0 = 3 o'clock.
-        // Map "12 o'clock clockwise" → start at -90°, sweep forward.
-        sprite_.fillArc(cx, cy, radius, innerR, -90, -90 + (int)endDeg, fillColor);
-    }
+    if (fillFraction <= 0.0f) return;
+
+    // Fill from 12 o'clock clockwise. LovyanGFX fillArc: 0° = 3 o'clock, +CW.
+    float endDeg = 360.0f * fillFraction;
+    sprite_.fillArc(cx, cy, radius, innerR, -90, -90 + (int)endDeg, fillColor);
+
+    // Round end-caps: filled circles on the stroke centerline at each arc terminus.
+    // Stroke 14 → cap radius 7. Skipped at fillFraction == 1.0 (caps would overlap meaninglessly).
+    if (fillFraction >= 1.0f) return;
+    float midR = radius - stroke / 2.0f;
+    int capR = stroke / 2;
+    // Start cap (12 o'clock).
+    sprite_.fillCircle(cx, cy - (int)midR, capR, fillColor);
+    // End cap.
+    float endRad = (-90.0f + endDeg) * (float)M_PI / 180.0f;
+    int ex = cx + (int)std::lround(midR * std::cos(endRad));
+    int ey = cy + (int)std::lround(midR * std::sin(endRad));
+    sprite_.fillCircle(ex, ey, capR, fillColor);
 }
 
 void Renderer::drawPill(int cx, int baselineY, const char *label, uint32_t color) {
     if (!label) return;
-    char buf[40];
-    snprintf(buf, sizeof(buf), "\xE2\x97\x8F %s", label);
     sprite_.setTextDatum(middle_center);
     sprite_.setTextColor(color);
     sprite_.setFont(&fonts::Font2);
-    sprite_.drawString(buf, cx, baselineY);
+    sprite_.drawString(label, cx, baselineY);
 }
 
 }  // namespace stopwatch

@@ -19,11 +19,11 @@ const char *labelFor(ProviderID id) {
 
 const char *planLabel(ProviderPlan plan) {
     switch (plan) {
-        case ProviderPlan::Free:       return "Free";
-        case ProviderPlan::Plus:       return "Plus";
-        case ProviderPlan::Pro:        return "Pro";
-        case ProviderPlan::Team:       return "Team";
-        case ProviderPlan::Enterprise: return "Ent";
+        case ProviderPlan::Free:       return "FREE";
+        case ProviderPlan::Plus:       return "PLUS";
+        case ProviderPlan::Pro:        return "PRO";
+        case ProviderPlan::Team:       return "TEAM";
+        case ProviderPlan::Enterprise: return "ENT";
         default:                       return "";
     }
 }
@@ -73,37 +73,55 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     }
     c.drawString(header, theme::kCenterX, 24);
 
-    // Rings: outer = session, inner = week
+    // Rings: outer = session (live), inner = week (dimmed reference)
+    int weekRadius = theme::kRingOuterR - theme::kRingStroke * 2 - 4;
     float sessionFrac = (p && p->sessionPct.has_value()) ? p->sessionPct.value() / 100.0f : 0.0f;
     float weekFrac    = (p && p->weekPct.has_value())    ? p->weekPct.value()    / 100.0f : 0.0f;
-    renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingOuterR,  theme::kRingStroke,
+    renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingOuterR, theme::kRingStroke,
                       theme::kRingTrack, color,    sessionFrac);
-    renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingOuterR - theme::kRingStroke * 2 - 4,
-                      theme::kRingStroke, theme::kRingTrack, colorDim, weekFrac);
+    renderer.drawRing(theme::kCenterX, theme::kCenterY, weekRadius,         theme::kRingStroke,
+                      theme::kRingTrack, colorDim, weekFrac);
 
-    // Center: session %
+    // Gravity well behind center metric.
+    c.fillCircle(theme::kCenterX, theme::kCenterY,
+                 weekRadius - theme::kRingStroke - 6, theme::kCenterWell);
+
+    // Center: SESSION + big % + reset countdown — single stack, tight rhythm.
     c.setTextColor(theme::kTextMuted);
     c.setFont(&fonts::Font2);
-    c.drawString("Session", theme::kCenterX, theme::kCenterY - 30);
+    c.drawString("SESSION", theme::kCenterX, theme::kCenterY - 36);
+
     if (p && p->sessionPct.has_value()) {
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%u%%", p->sessionPct.value());
+        // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
+        char digits[6];
+        snprintf(digits, sizeof(digits), "%u", p->sessionPct.value());
         c.setTextColor(color);
+
         c.setFont(&fonts::Font7);
-        c.drawString(buf, theme::kCenterX, theme::kCenterY + 6);
+        int dw = c.textWidth(digits);
+        c.setFont(&fonts::Font4);
+        int pw = c.textWidth("%");
+        constexpr int kGap = 6;
+        int leftX = theme::kCenterX - (dw + kGap + pw) / 2;
+
+        c.setTextDatum(middle_left);
+        c.setFont(&fonts::Font7);
+        c.drawString(digits, leftX, theme::kCenterY + 4);
+        c.setFont(&fonts::Font4);
+        c.drawString("%", leftX + dw + kGap, theme::kCenterY + 14);
+        c.setTextDatum(middle_center);
     } else {
         c.setTextColor(theme::kTextMuted);
         c.setFont(&fonts::Font4);
-        c.drawString("--", theme::kCenterX, theme::kCenterY + 6);
+        c.drawString("--", theme::kCenterX, theme::kCenterY + 4);
     }
 
-    // Reset countdown under session
     if (p && p->sessionResetAt.has_value()) {
         char buf[24];
         formatResetIn(buf, sizeof(buf), p->sessionResetAt.value(), snap.capturedAt);
         c.setTextColor(theme::kTextMuted);
         c.setFont(&fonts::Font2);
-        c.drawString(buf, theme::kCenterX, theme::kCenterY + 60);
+        c.drawString(buf, theme::kCenterX, theme::kCenterY + 48);
     }
 
     // Bottom strap: week % + credits
