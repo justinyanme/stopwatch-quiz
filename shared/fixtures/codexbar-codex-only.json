@@ -1,0 +1,15 @@
+{
+  "capturedAt": "2025-05-28T18:10:22Z",
+  "providers": [
+    {
+      "provider": "codex",
+      "status": { "indicator": "none" },
+      "usage": {
+        "primary":   { "usedPercent": 72, "resetsAt": "2025-05-28T21:20:00Z" },
+        "secondary": { "usedPercent": 41, "resetsAt": "2025-05-29T17:00:00Z" }
+      },
+      "credits":  { "remaining": 112.4 },
+      "plan":     "plus"
+    }
+  ]
+}
