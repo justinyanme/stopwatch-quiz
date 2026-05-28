@@ -11,6 +11,9 @@ struct StopwatchBridge {
         switch cmd {
         case "version":
             print("stopwatch-bridge 0.1.0")
+        case "run", "install", "pair", "decode-snapshot":
+            print("\(cmd): not yet implemented (coming in a later task)")
+            exit(2)
         default:
             print("unknown command: \(cmd)")
             exit(2)
