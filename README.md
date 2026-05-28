@@ -40,6 +40,8 @@ make monitor   # optional: watch serial output
 
 Power-cycle the watch. It will wake into the overview with cached or live data.
 
+If `make flash` fails with `Failed to connect to ESP32-S3: No serial data received`, the running firmware is drowning out esptool's sync on the USB-Serial-JTAG endpoint. Long-press BOOT until the screen goes off and the green LED blinks (firmware-controlled sleep — USB stays enumerated), then re-run `make flash`. `upload_protocol = esp-builtin` is a dead end on macOS because the kernel CDC kext blocks libusb from claiming the JTAG interface.
+
 ## Daily use
 
 | Input | Action |
