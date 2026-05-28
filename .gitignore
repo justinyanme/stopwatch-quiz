@@ -4,3 +4,7 @@ build/
 .pio/
 .vscode/
 .idea/
+
+# Swift Package Manager build artifacts (per-target .build dirs)
+.build/
+
