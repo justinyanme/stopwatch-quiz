@@ -95,16 +95,24 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     renderer.drawRing(theme::kCenterX, theme::kCenterY, weekRadius,         theme::kRingStroke,
                       theme::kRingTrack, colorDim, weekFrac);
 
-    // Watermark: large dim brand icon behind the center metric. Doubles as the
-    // visual anchor that the gravity-well disc would otherwise provide.
-    c.drawBitmap(theme::kCenterX - icons::kSize96 / 2,
-                 theme::kCenterY - icons::kSize96 / 2,
-                 icons::bitmap96(id), icons::kSize96, icons::kSize96, colorDim);
+    // Top of center stack: brand mark + cap-type label inline. Icon is the
+    // provider tag, text is the cap type. Centered as one unit at y - 36.
+    {
+        constexpr int kLabelY    = theme::kCenterY - 36;
+        constexpr int kIconTextGap = 8;
+        c.setFont(&fonts::Font2);
+        int tw = c.textWidth(labels.primary);
+        int totalW = icons::kSize28 + kIconTextGap + tw;
+        int leftX  = theme::kCenterX - totalW / 2;
 
-    // Center: primary slot label + big % + reset countdown — single stack, tight rhythm.
-    c.setTextColor(theme::kTextMuted);
-    c.setFont(&fonts::Font2);
-    c.drawString(labels.primary, theme::kCenterX, theme::kCenterY - 36);
+        c.drawBitmap(leftX, kLabelY - icons::kSize28 / 2,
+                     icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
+
+        c.setTextDatum(middle_left);
+        c.setTextColor(theme::kTextMuted);
+        c.drawString(labels.primary, leftX + icons::kSize28 + kIconTextGap, kLabelY);
+        c.setTextDatum(middle_center);
+    }
 
     if (p && p->sessionPct.has_value()) {
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
