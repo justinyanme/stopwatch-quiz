@@ -15,11 +15,16 @@ public struct Config: Codable, Equatable, Sendable {
         return support.appendingPathComponent("stopwatch-bridge/config.json")
     }()
 
-    public static func makeDefault(at _: URL = defaultPath) -> Config {
+    public static func makeDefault() -> Config {
         // Random ephemeral port via the same range as `jot -r 1 49152 65535`.
         let port = UInt16.random(in: 49152...65535)
         var hashBytes = [UInt8](repeating: 0, count: 2)
-        _ = SecRandomCopyBytes(kSecRandomDefault, hashBytes.count, &hashBytes)
+        let status = SecRandomCopyBytes(kSecRandomDefault, hashBytes.count, &hashBytes)
+        if status != errSecSuccess {
+            // Extremely rare; fall back to first 2 bytes of a UUID so the hash is still unique.
+            let uuid = UUID().uuid
+            hashBytes = [uuid.0, uuid.1]
+        }
         let hash = hashBytes.map { String(format: "%02x", $0) }.joined()
         return .init(
             codexbarPort: port,
@@ -41,8 +46,12 @@ public struct Config: Codable, Equatable, Sendable {
                                                 withIntermediateDirectories: true)
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        // Set umask so the atomic write creates the file with 0o600 directly,
+        // closing the TOCTOU window before the explicit chmod below.
+        let prev = umask(0o177)
+        defer { umask(prev) }
         try enc.encode(cfg).write(to: url, options: .atomic)
-        // Restrictive perms: owner read/write only.
+        // Belt-and-suspenders chmod in case rename swap preserved old perms.
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }

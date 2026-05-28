@@ -8,7 +8,7 @@ import Testing
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("cfg-\(UUID()).json")
         defer { try? FileManager.default.removeItem(at: tmp) }
 
-        let original = Config.makeDefault(at: tmp)
+        let original = Config.makeDefault()
         try Config.save(original, to: tmp)
 
         let loaded = try Config.load(from: tmp)
