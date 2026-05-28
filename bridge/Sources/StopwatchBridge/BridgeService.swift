@@ -8,6 +8,7 @@ public actor BridgeService {
     private let supervisor: CodexbarSupervisor
     private let client: CodexbarClient
     private let peripheral: GATTPeripheral
+    private var snapshotCache = SnapshotCache()
 
     public init(config: Config) async {
         self.config = config
@@ -52,27 +53,14 @@ public actor BridgeService {
         let started = Date()
         do {
             let usage = try await client.fetch(scope: s)
-            let bytes = SnapshotEncoder.encode(usage)
+            let bytes = snapshotCache.recordSuccess(usage)
             await peripheral.updateSnapshot(bytes)
             let elapsed = Date().timeIntervalSince(started)
             FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
                                                         Int(scope), usage.providers.count, elapsed).utf8))
         } catch {
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
-            // Build an error snapshot with the bridge_error flag set, still 56 bytes (3 disabled providers).
-            let errUsage = NormalizedUsage(
-                capturedAt: Date(),
-                flags: [.bridgeError, .stale],
-                providers: [
-                    .init(providerID: .codex,  status: .disabled, sessionPct: nil, weekPct: nil,
-                          sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
-                    .init(providerID: .claude, status: .disabled, sessionPct: nil, weekPct: nil,
-                          sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
-                    .init(providerID: .gemini, status: .disabled, sessionPct: nil, weekPct: nil,
-                          sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
-                ]
-            )
-            await peripheral.updateSnapshot(SnapshotEncoder.encode(errUsage))
+            await peripheral.updateSnapshot(snapshotCache.recordFailure())
         }
     }
 }

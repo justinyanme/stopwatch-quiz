@@ -22,6 +22,7 @@ public:
     ViewId currentView() const { return view_; }
     bool wantsRefresh() const { return wantsRefresh_; }
     void clearRefreshRequest() { wantsRefresh_ = false; }
+    void noteWakeFromSleep();
     bool wantsImmediateSleep() const { return wantsSleep_; }
     void clearSleepRequest() { wantsSleep_ = false; }
     LinkStatus linkStatus() const { return link_; }

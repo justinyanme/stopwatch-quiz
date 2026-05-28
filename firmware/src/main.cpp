@@ -77,6 +77,21 @@ static bool fetchAndApply(uint8_t scope) {
     return true;
 }
 
+static bool applyRefreshRequest(const char *label) {
+    if (!g_app.wantsRefresh()) return false;
+    renderRefreshingOverlay(label);
+    fetchAndApply(0x00);
+    g_app.clearRefreshRequest();
+    return true;
+}
+
+static void enterSleepAndRefreshOnWake() {
+    g_power.enterLightSleep();
+    g_app.noteWakeFromSleep();
+    applyRefreshRequest("Refreshing\xE2\x80\xA6");
+    renderCurrent();
+}
+
 void setup() {
     delay(2000);  // Let USB-CDC enumerate before first Serial.print
     Serial.begin(115200);
@@ -126,23 +141,18 @@ void loop() {
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();
         bool changed = g_app.handleEvent(ev);
-        if (g_app.wantsRefresh()) {
-            renderRefreshingOverlay("Refreshing\xE2\x80\xA6");
-            fetchAndApply(0x00);
-            g_app.clearRefreshRequest();
+        if (applyRefreshRequest("Refreshing\xE2\x80\xA6")) {
             changed = true;
         }
         if (g_app.wantsImmediateSleep()) {
             g_app.clearSleepRequest();
-            g_power.enterLightSleep();
-            renderCurrent();
+            enterSleepAndRefreshOnWake();
         } else if (changed) {
             renderCurrent();
         }
     }
     if (g_power.shouldSleep()) {
-        g_power.enterLightSleep();
-        renderCurrent();
+        enterSleepAndRefreshOnWake();
     }
     delay(20);
 }

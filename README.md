@@ -77,8 +77,8 @@ Status pills under the rings:
 ## Tests
 
 ```bash
-cd bridge && swift test                              # 13/13 Swift bridge tests
-cd firmware && pio test -e native                    # 9/9 firmware native tests
+cd bridge && swift test                              # 16/16 Swift bridge tests
+cd firmware && pio test -e native                    # 10/10 firmware native tests
 ```
 
 Cross-side wire compatibility is locked: both sides round-trip against the same `shared/fixtures/*.hex` files.
