@@ -92,6 +92,11 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         Task { @MainActor in self.flushPendingNotify(peripheral: peripheral) }
     }
 
+    nonisolated public func peripheralManager(_ peripheral: CBPeripheralManager,
+                                              didAdd service: CBService, error: Error?) {
+        Task { @MainActor in self.handleDidAdd(peripheral: peripheral, error: error) }
+    }
+
     // MARK: - MainActor-isolated handlers
 
     private func handleStateChange(peripheral: CBPeripheralManager) {
@@ -103,15 +108,27 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         }
         if !isAdvertising {
             // Idempotent re-arming: removeAllServices() is safe even on first run.
+            // startAdvertising() fires from didAdd(_:error:) after CoreBluetooth
+            // confirms the service registered — failure surfaces with a log instead
+            // of silently advertising an empty service.
             peripheral.removeAllServices()
             peripheral.add(service)
-            peripheral.startAdvertising([
-                CBAdvertisementDataLocalNameKey: Protocol.localName,
-                CBAdvertisementDataServiceUUIDsKey: [Protocol.serviceUUID]
-            ])
-            isAdvertising = true
-            FileHandle.standardOutput.write(Data("advertising \(Protocol.localName)\n".utf8))
         }
+    }
+
+    private func handleDidAdd(peripheral: CBPeripheralManager, error: Error?) {
+        if let error = error {
+            FileHandle.standardError.write(
+                Data("GATT service add failed: \(error); will retry on next BT state change\n".utf8))
+            isAdvertising = false  // force re-attempt on next poweredOn
+            return
+        }
+        peripheral.startAdvertising([
+            CBAdvertisementDataLocalNameKey: Protocol.localName,
+            CBAdvertisementDataServiceUUIDsKey: [Protocol.serviceUUID]
+        ])
+        isAdvertising = true
+        FileHandle.standardOutput.write(Data("advertising \(Protocol.localName)\n".utf8))
     }
 
     private func handleRead(peripheral: CBPeripheralManager, request: CBATTRequest) {
