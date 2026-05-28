@@ -6,11 +6,15 @@ struct StopwatchBridge {
         let args = Array(CommandLine.arguments.dropFirst())
         guard let cmd = args.first else { usage(); exit(2) }
         switch cmd {
-        case "run":               await runCommand()
-        case "version":           print("stopwatch-bridge 0.1.0")
-        case "install", "pair", "decode-snapshot":
-            print("\(cmd): not yet implemented (coming in Task A.9–A.10)")
+        case "run":               await runCommand(verbose: false)
+        case "pair":              await runCommand(verbose: true)
+        case "install":
+            print("install: not yet implemented (coming in Task A.10)")
             exit(2)
+        case "decode-snapshot":
+            guard args.count >= 2 else { usage(); exit(2) }
+            exit(DecodeCommand.run(args[1]))
+        case "version":           print("stopwatch-bridge 0.1.0")
         default: usage(); exit(2)
         }
     }
@@ -20,13 +24,16 @@ struct StopwatchBridge {
         Usage: stopwatch-bridge <command>
           run                       Foreground daemon (launchd invokes this)
           install                   Install as launchd agent (TODO)
-          pair                      Foreground with verbose logging (TODO)
-          decode-snapshot <hex>     Print a captured snapshot as JSON (TODO)
+          pair                      Foreground with verbose logging
+          decode-snapshot <hex>     Print a captured snapshot as JSON
           version                   Print version
         """)
     }
 
-    static func runCommand() async {
+    static func runCommand(verbose: Bool) async {
+        if verbose {
+            FileHandle.standardOutput.write(Data("pair mode: verbose logging on\n".utf8))
+        }
         let cfg: Config
         do {
             if let loaded = try Config.load() {
