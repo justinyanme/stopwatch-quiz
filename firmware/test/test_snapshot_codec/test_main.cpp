@@ -55,6 +55,13 @@ void test_threeProvidersFixtureDecodes(void) {
     TEST_ASSERT_EQUAL(1124, snap.providers[0].creditsTimesTen.value());
     TEST_ASSERT_EQUAL((int)ProviderPlan::Plus, (int)snap.providers[0].plan);
 
+    // Claude
+    TEST_ASSERT_EQUAL((int)ProviderID::Claude, (int)snap.providers[1].id);
+    TEST_ASSERT_EQUAL(12, snap.providers[1].sessionPct.value());
+    TEST_ASSERT_EQUAL(37, snap.providers[1].weekPct.value());
+    TEST_ASSERT_FALSE(snap.providers[1].creditsTimesTen.has_value());
+    TEST_ASSERT_EQUAL((int)ProviderPlan::Pro, (int)snap.providers[1].plan);
+
     TEST_ASSERT_FALSE(snap.providers[2].weekPct.has_value());
     TEST_ASSERT_FALSE(snap.providers[2].weekResetAt.has_value());
 }
@@ -83,11 +90,19 @@ void test_tooShortIsRejected(void) {
     TEST_ASSERT_EQUAL((int)DecodeResult::TooShort, (int)rc);
 }
 
+void test_providerCountTooLargeIsRejected(void) {
+    uint8_t bytes[kHeaderSize] = { 1, 0, 4 /*count > kProviderCount*/, 0, 0, 0, 0, 0 };
+    Snapshot snap;
+    auto rc = decodeSnapshot(bytes, sizeof(bytes), snap);
+    TEST_ASSERT_EQUAL((int)DecodeResult::InvalidProviderCount, (int)rc);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_threeProvidersFixtureDecodes);
     RUN_TEST(test_errorFixtureDecodes);
     RUN_TEST(test_futureMajorIsRejected);
     RUN_TEST(test_tooShortIsRejected);
+    RUN_TEST(test_providerCountTooLargeIsRejected);
     return UNITY_END();
 }
