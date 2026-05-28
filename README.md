@@ -77,7 +77,7 @@ Status pills under the rings:
 ## Tests
 
 ```bash
-cd bridge && swift test                              # 16/16 Swift bridge tests
+cd bridge && swift test                              # 18/18 Swift bridge tests
 cd firmware && pio test -e native                    # 10/10 firmware native tests
 ```
 

@@ -140,9 +140,25 @@ import Testing
         var cache = SnapshotCache()
         let good = cache.recordSuccess(.threeProvidersFixture)
 
-        _ = cache.recordSuccess(.errorFixture)
-        let failed = cache.recordFailure()
+        let failed = cache.recordSuccess(.errorFixture)
 
         #expect(Array(failed[Protocol.headerSize...]) == Array(good[Protocol.headerSize...]))
+    }
+
+    @Test func snapshotCacheRefreshesCapturedAtWhenMarkingLastGoodStale() {
+        var cache = SnapshotCache()
+        _ = cache.recordSuccess(.threeProvidersFixture)
+        let capturedAt = Date(timeIntervalSince1970: 1_748_500_000)
+
+        let failed = cache.recordFailure(capturedAt: capturedAt)
+
+        #expect(readU32(failed, offset: 4) == UInt32(capturedAt.timeIntervalSince1970))
+    }
+
+    private func readU32(_ data: Data, offset: Int) -> UInt32 {
+        UInt32(data[offset])
+            | (UInt32(data[offset + 1]) << 8)
+            | (UInt32(data[offset + 2]) << 16)
+            | (UInt32(data[offset + 3]) << 24)
     }
 }
