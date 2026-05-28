@@ -108,5 +108,41 @@ import Testing
         let actual = SnapshotEncoder.encode(.errorFixture)
         #expect(actual == expected)
     }
-}
 
+    @Test func gattSnapshotPadsScopedFetchToFixedPayload() {
+        let bytes = SnapshotEncoder.encodeGATTSnapshot(.codexOnlyFixture)
+
+        #expect(bytes.count == Protocol.snapshotSize)
+        #expect(bytes[2] == UInt8(Protocol.providerCount))
+        #expect((bytes[3] & SnapshotFlags.providerMissing.rawValue) != 0)
+
+        let claudeOffset = Protocol.headerSize + Protocol.perProviderSize
+        let geminiOffset = Protocol.headerSize + Protocol.perProviderSize * 2
+        #expect(bytes[claudeOffset] == ProviderID.claude.rawValue)
+        #expect(bytes[claudeOffset + 1] == ProviderStatus.disabled.rawValue)
+        #expect(bytes[geminiOffset] == ProviderID.gemini.rawValue)
+        #expect(bytes[geminiOffset + 1] == ProviderStatus.disabled.rawValue)
+    }
+
+    @Test func snapshotCacheKeepsLastGoodProviderBytesOnFailure() {
+        var cache = SnapshotCache()
+        let good = cache.recordSuccess(.threeProvidersFixture)
+
+        let failed = cache.recordFailure()
+
+        #expect(failed.count == Protocol.snapshotSize)
+        #expect((failed[3] & SnapshotFlags.stale.rawValue) != 0)
+        #expect((failed[3] & SnapshotFlags.bridgeError.rawValue) != 0)
+        #expect(Array(failed[Protocol.headerSize...]) == Array(good[Protocol.headerSize...]))
+    }
+
+    @Test func snapshotCacheDoesNotReplaceLastGoodDataWithBridgeErrorPayload() {
+        var cache = SnapshotCache()
+        let good = cache.recordSuccess(.threeProvidersFixture)
+
+        _ = cache.recordSuccess(.errorFixture)
+        let failed = cache.recordFailure()
+
+        #expect(Array(failed[Protocol.headerSize...]) == Array(good[Protocol.headerSize...]))
+    }
+}

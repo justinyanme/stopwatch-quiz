@@ -40,6 +40,14 @@ void test_longPressesSetFlags(void) {
     TEST_ASSERT_TRUE(app.wantsImmediateSleep());
 }
 
+void test_wakeFromSleepRequestsRefresh(void) {
+    App app;
+    app.begin();
+    TEST_ASSERT_FALSE(app.wantsRefresh());
+    app.noteWakeFromSleep();
+    TEST_ASSERT_TRUE(app.wantsRefresh());
+}
+
 void test_linkStatusDefaultsToNoBridgeAndMutates(void) {
     App app;
     app.begin();
@@ -53,6 +61,7 @@ int main(int, char **) {
     RUN_TEST(test_keyBShortCyclesForward);
     RUN_TEST(test_keyAShortCyclesBackward);
     RUN_TEST(test_longPressesSetFlags);
+    RUN_TEST(test_wakeFromSleepRequestsRefresh);
     RUN_TEST(test_linkStatusDefaultsToNoBridgeAndMutates);
     return UNITY_END();
 }

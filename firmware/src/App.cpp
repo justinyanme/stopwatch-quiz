@@ -40,4 +40,8 @@ bool App::handleEvent(ButtonEvent ev) {
     return false;
 }
 
+void App::noteWakeFromSleep() {
+    wantsRefresh_ = true;
+}
+
 }  // namespace stopwatch

@@ -11,6 +11,14 @@ namespace stopwatch {
 // active-low. ext1 wake uses ANY_LOW which matches.
 namespace { constexpr gpio_num_t kPinKeyA = GPIO_NUM_2;
               constexpr gpio_num_t kPinKeyB = GPIO_NUM_1;
+
+void waitForButtonsReleased() {
+    M5.update();
+    while (M5.BtnA.isPressed() || M5.BtnB.isPressed()) {
+        delay(20);
+        M5.update();
+    }
+}
 }
 
 void Power::begin() {
@@ -27,6 +35,7 @@ bool Power::shouldSleep() const {
 }
 
 void Power::enterLightSleep() {
+    waitForButtonsReleased();
     M5.Display.sleep();
     uint64_t mask = (1ULL << kPinKeyA) | (1ULL << kPinKeyB);
     esp_sleep_enable_ext1_wakeup(mask, ESP_EXT1_WAKEUP_ANY_LOW);
