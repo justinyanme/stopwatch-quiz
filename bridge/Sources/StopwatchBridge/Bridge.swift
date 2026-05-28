@@ -8,9 +8,7 @@ struct StopwatchBridge {
         switch cmd {
         case "run":               await runCommand(verbose: false)
         case "pair":              await runCommand(verbose: true)
-        case "install":
-            print("install: not yet implemented (coming in Task A.10)")
-            exit(2)
+        case "install":           exit(InstallCommand.run())
         case "decode-snapshot":
             guard args.count >= 2 else { usage(); exit(2) }
             exit(DecodeCommand.run(args[1]))
@@ -23,7 +21,7 @@ struct StopwatchBridge {
         print("""
         Usage: stopwatch-bridge <command>
           run                       Foreground daemon (launchd invokes this)
-          install                   Install as launchd agent (TODO)
+          install                   Install as launchd agent
           pair                      Foreground with verbose logging
           decode-snapshot <hex>     Print a captured snapshot as JSON
           version                   Print version
