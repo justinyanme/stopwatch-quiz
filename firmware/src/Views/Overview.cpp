@@ -1,21 +1,13 @@
 // firmware/src/Views/Overview.cpp
 #include "Overview.h"
 #include "../App.h"
+#include "../IconLookup.h"
 #include "../Theme.h"
 #include <cstdio>
 
 namespace stopwatch::views {
 
 namespace {
-const char *labelFor(ProviderID id) {
-    switch (id) {
-        case ProviderID::Codex:  return "CODEX";
-        case ProviderID::Claude: return "CLAUDE";
-        case ProviderID::Gemini: return "GEMINI";
-    }
-    return "?";
-}
-
 // Returns the provider in `snap` with the highest sessionPct, or nullptr if none.
 const ProviderSlot *worstOff(const Snapshot &snap) {
     const ProviderSlot *best = nullptr;
@@ -75,9 +67,11 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
     c.setTextDatum(middle_center);
 
     if (worst && worst->sessionPct.has_value()) {
-        c.setTextColor(theme::kTextMuted);
-        c.setFont(&fonts::Font2);
-        c.drawString(labelFor(worst->id), theme::kCenterX, theme::kCenterY - 32);
+        // Provider mark in its full brand color, sitting where the text label used to.
+        c.drawBitmap(theme::kCenterX - icons::kSize28 / 2,
+                     theme::kCenterY - 40 - icons::kSize28 / 2,
+                     icons::bitmap28(worst->id), icons::kSize28, icons::kSize28,
+                     theme::colorFor(worst->id));
 
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
         char digits[6];

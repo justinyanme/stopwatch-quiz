@@ -1,6 +1,7 @@
 // firmware/src/Views/Provider.cpp
 #include "Provider.h"
 #include "../App.h"
+#include "../IconLookup.h"
 #include "../Theme.h"
 #include <cstdio>
 #include <time.h>
@@ -94,9 +95,11 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     renderer.drawRing(theme::kCenterX, theme::kCenterY, weekRadius,         theme::kRingStroke,
                       theme::kRingTrack, colorDim, weekFrac);
 
-    // Gravity well behind center metric.
-    c.fillCircle(theme::kCenterX, theme::kCenterY,
-                 weekRadius - theme::kRingStroke - 6, theme::kCenterWell);
+    // Watermark: large dim brand icon behind the center metric. Doubles as the
+    // visual anchor that the gravity-well disc would otherwise provide.
+    c.drawBitmap(theme::kCenterX - icons::kSize96 / 2,
+                 theme::kCenterY - icons::kSize96 / 2,
+                 icons::bitmap96(id), icons::kSize96, icons::kSize96, colorDim);
 
     // Center: primary slot label + big % + reset countdown — single stack, tight rhythm.
     c.setTextColor(theme::kTextMuted);
