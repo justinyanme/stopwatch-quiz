@@ -40,6 +40,19 @@ import Testing
         #expect(StubURLProtocol.captured.first?.absoluteString.contains("provider=codex") == true)
     }
 
+    @Test func errorFixtureSurfacesFlags() async throws {
+        let json = try Fixtures.loadJSON("codexbar-error")
+        StubURLProtocol.stub = .init(status: 200, body: json)
+
+        let client = CodexbarClient(port: 51111, session: stubSession())
+        let usage = try await client.fetch(scope: .all)
+
+        #expect(usage.providers.isEmpty)
+        #expect(usage.flags.contains(.stale))
+        #expect(usage.flags.contains(.bridgeError))
+        #expect(usage.flags.contains(.providerMissing))   // set by client because providers.isEmpty
+    }
+
     // MARK: - URLProtocol stub plumbing
 
     private func stubSession() -> URLSession {
