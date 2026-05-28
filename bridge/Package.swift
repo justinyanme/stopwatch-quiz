@@ -15,10 +15,7 @@ let package = Package(
         .testTarget(
             name: "StopwatchBridgeTests",
             dependencies: ["StopwatchBridge"],
-            path: "Tests/StopwatchBridgeTests",
-            resources: [
-                .copy("../../../shared/fixtures")
-            ]
+            path: "Tests/StopwatchBridgeTests"
         )
     ]
 )
