@@ -21,11 +21,12 @@ stopwatch::Snapshot    g_snap;
 
 static void renderCurrent() {
     using namespace stopwatch;
+    auto link = g_app.linkStatus();
     switch (g_app.currentView()) {
-        case ViewId::Overview: views::drawOverview(g_renderer, g_snap); break;
-        case ViewId::Codex:    views::drawProvider(g_renderer, g_snap, ProviderID::Codex);  break;
-        case ViewId::Claude:   views::drawProvider(g_renderer, g_snap, ProviderID::Claude); break;
-        case ViewId::Gemini:   views::drawProvider(g_renderer, g_snap, ProviderID::Gemini); break;
+        case ViewId::Overview: views::drawOverview(g_renderer, g_snap, link); break;
+        case ViewId::Codex:    views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link); break;
+        case ViewId::Claude:   views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link); break;
+        case ViewId::Gemini:   views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link); break;
     }
     g_renderer.present();
 }
@@ -34,11 +35,23 @@ static bool fetchAndApply(uint8_t scope) {
     uint8_t buf[stopwatch::kSnapshotSize];
     size_t len = 0;
     auto rc = g_ble.fetch(scope, buf, sizeof(buf), len);
-    if (rc != stopwatch::BleClient::FetchResult::Ok) return false;
+    switch (rc) {
+        case stopwatch::BleClient::FetchResult::NoPeripheral:
+            g_app.setLinkStatus(stopwatch::LinkStatus::NoBridge);  return false;
+        case stopwatch::BleClient::FetchResult::ConnectFailed:
+        case stopwatch::BleClient::FetchResult::ReadFailed:
+            g_app.setLinkStatus(stopwatch::LinkStatus::LinkError); return false;
+        case stopwatch::BleClient::FetchResult::Ok:
+            break;
+    }
     stopwatch::Snapshot snap;
-    if (stopwatch::decodeSnapshot(buf, len, snap) != stopwatch::DecodeResult::Ok) return false;
+    if (stopwatch::decodeSnapshot(buf, len, snap) != stopwatch::DecodeResult::Ok) {
+        g_app.setLinkStatus(stopwatch::LinkStatus::LinkError);
+        return false;
+    }
     g_snap = snap;
     g_store.save(buf, len);
+    g_app.setLinkStatus(stopwatch::LinkStatus::Connected);
     return true;
 }
 

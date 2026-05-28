@@ -18,6 +18,9 @@ public:
                   uint32_t trackColor, uint32_t fillColor,
                   float fillFraction);
 
+    /// Draws a small "● label" pill at (cx, baselineY). No-op if label is null.
+    void drawPill(int cx, int baselineY, const char *label, uint32_t color);
+
 private:
     M5Canvas sprite_{&M5.Display};
 };
