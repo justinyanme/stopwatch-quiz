@@ -8,13 +8,16 @@ struct SnapshotCache {
         let snapshot = SnapshotEncoder.encodeGATTSnapshot(usage)
         if isValidUsagePayload(usage) {
             lastGoodSnapshot = snapshot
+            return snapshot
         }
-        return snapshot
+        return lastGoodSnapshot.map {
+            SnapshotEncoder.markStaleBridgeError($0, capturedAt: usage.capturedAt)
+        } ?? snapshot
     }
 
     mutating func recordFailure(capturedAt: Date = Date()) -> Data {
         if let lastGoodSnapshot {
-            return SnapshotEncoder.markStaleBridgeError(lastGoodSnapshot)
+            return SnapshotEncoder.markStaleBridgeError(lastGoodSnapshot, capturedAt: capturedAt)
         }
         return SnapshotEncoder.errorEmpty(capturedAt: capturedAt)
     }

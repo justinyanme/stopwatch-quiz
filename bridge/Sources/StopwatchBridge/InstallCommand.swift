@@ -42,29 +42,17 @@ enum InstallCommand {
         // 3. Write the launchd plist.
         let plistURL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/\(plistLabel).plist")
-        let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>Label</key><string>\(plistLabel)</string>
-          <key>ProgramArguments</key>
-          <array>
-            <string>\(binary)</string>
-            <string>run</string>
-          </array>
-          <key>RunAtLoad</key><true/>
-          <key>KeepAlive</key><true/>
-          <key>LimitLoadToSessionType</key><string>Aqua</string>
-          <key>StandardOutPath</key><string>/tmp/stopwatch-bridge.log</string>
-          <key>StandardErrorPath</key><string>/tmp/stopwatch-bridge.log</string>
-        </dict>
-        </plist>
-        """
+        let plist: Data
+        do {
+            plist = try launchAgentPlist(binaryPath: binary)
+        } catch {
+            FileHandle.standardError.write(Data("plist generation failed: \(error)\n".utf8))
+            return 1
+        }
         do {
             try FileManager.default.createDirectory(at: plistURL.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
-            try plist.write(to: plistURL, atomically: true, encoding: .utf8)
+            try plist.write(to: plistURL, options: .atomic)
             print("wrote launchd plist to \(plistURL.path)")
         } catch {
             FileHandle.standardError.write(Data("plist write failed: \(error)\n".utf8))
@@ -89,6 +77,19 @@ enum InstallCommand {
           3. To pair, press a button on the watch (after flashing firmware).
         """)
         return 0
+    }
+
+    static func launchAgentPlist(binaryPath binary: String) throws -> Data {
+        let plist: [String: Any] = [
+            "Label": plistLabel,
+            "ProgramArguments": [binary, "run"],
+            "RunAtLoad": true,
+            "KeepAlive": true,
+            "LimitLoadToSessionType": "Aqua",
+            "StandardOutPath": "/tmp/stopwatch-bridge.log",
+            "StandardErrorPath": "/tmp/stopwatch-bridge.log",
+        ]
+        return try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
     }
 
     private static func shell(_ cmd: String, _ args: String...) -> Int32 {

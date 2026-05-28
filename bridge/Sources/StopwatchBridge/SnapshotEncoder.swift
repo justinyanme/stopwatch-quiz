@@ -62,10 +62,11 @@ public enum SnapshotEncoder {
         return snapshot
     }
 
-    public static func markStaleBridgeError(_ snapshot: Data) -> Data {
+    public static func markStaleBridgeError(_ snapshot: Data, capturedAt: Date) -> Data {
         precondition(snapshot.count == Protocol.snapshotSize, "snapshot must be \(Protocol.snapshotSize) bytes")
         var out = snapshot
         out[3] |= SnapshotFlags.stale.rawValue | SnapshotFlags.bridgeError.rawValue
+        writeU32(&out, UInt32(max(0, capturedAt.timeIntervalSince1970)), at: 4)
         return out
     }
 
@@ -79,6 +80,13 @@ public enum SnapshotEncoder {
         out.append(UInt8((v >>  8) & 0xFF))
         out.append(UInt8((v >> 16) & 0xFF))
         out.append(UInt8((v >> 24) & 0xFF))
+    }
+
+    private static func writeU32(_ out: inout Data, _ v: UInt32, at offset: Int) {
+        out[offset] = UInt8(v & 0xFF)
+        out[offset + 1] = UInt8((v >> 8) & 0xFF)
+        out[offset + 2] = UInt8((v >> 16) & 0xFF)
+        out[offset + 3] = UInt8((v >> 24) & 0xFF)
     }
 
     /// Returns a valid 56-byte v1.0 snapshot showing all three providers as disabled
