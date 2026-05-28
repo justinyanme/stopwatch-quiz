@@ -18,10 +18,13 @@ public enum Protocol {
     public static let snapshotSize     = headerSize + perProviderSize * providerCount  // 56
 }
 
-public enum SnapshotFlag: UInt8, Sendable {
-    case stale            = 0b0000_0001
-    case bridgeError      = 0b0000_0010
-    case providerMissing  = 0b0000_0100
+public struct SnapshotFlags: OptionSet, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+
+    public static let stale           = SnapshotFlags(rawValue: 0b0000_0001)
+    public static let bridgeError     = SnapshotFlags(rawValue: 0b0000_0010)
+    public static let providerMissing = SnapshotFlags(rawValue: 0b0000_0100)
 }
 
 public enum ProviderID: UInt8, Sendable {
@@ -60,11 +63,14 @@ public struct NormalizedUsage: Equatable, Sendable {
         public var weekPct: UInt8?
         public var sessionResetAt: Date?    // nil → 0 on the wire
         public var weekResetAt: Date?
-        public var credits: Double?         // nil → 0xFFFF on the wire
+        /// Credits remaining. `nil` → `0xFFFF` (unknown) on the wire.
+        /// Precision: one decimal place (×10 encoding). Max representable: 6553.4 (0xFFFE).
+        /// Values above 6553.4 are clamped at encode time.
+        public var credits: Double?
         public var plan: ProviderPlan
     }
 
     public var capturedAt: Date
-    public var flags: Set<SnapshotFlag>
+    public var flags: SnapshotFlags
     public var providers: [Provider]
 }
