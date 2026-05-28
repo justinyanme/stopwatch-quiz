@@ -21,11 +21,21 @@ enum InstallCommand {
             return 1
         }
 
-        // 2. Resolve the release binary path. The user is expected to have
-        //    built with `swift build -c release` (the Makefile does this).
-        let binary = FileManager.default.currentDirectoryPath + "/.build/release/stopwatch-bridge"
+        // 2. Resolve the release binary path from the running executable so it
+        //    works regardless of cwd (Makefile runs from repo root; install-bridge.sh
+        //    runs from bridge/; both should work).
+        guard let binaryURL = Bundle.main.executableURL?.resolvingSymlinksInPath() else {
+            FileHandle.standardError.write(Data("could not resolve running executable path\n".utf8))
+            return 1
+        }
+        let binary = binaryURL.path
+        // Sanity check: warn if running a debug build (the launchd job should point
+        // at a release binary for stability, not a transient debug build).
+        if binary.contains("/.build/debug/") {
+            FileHandle.standardError.write(Data("warning: installing a debug binary at \(binary); recommend `swift build -c release` first\n".utf8))
+        }
         guard FileManager.default.isExecutableFile(atPath: binary) else {
-            FileHandle.standardError.write(Data("missing release binary at \(binary); run `swift build -c release` first\n".utf8))
+            FileHandle.standardError.write(Data("binary not executable: \(binary)\n".utf8))
             return 1
         }
 
