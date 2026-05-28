@@ -39,7 +39,7 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 | Offset | Type | Field | Meaning |
 |---|---|---|---|
 | 0 | uint8 | `versionMajor` | `0x01` for v1.x. Structural; bumping breaks the watch. |
-| 1 | uint8 | `versionMinor` | `0x00` for v1.0. Additive; new trailing per-provider fields. |
+| 1 | uint8 | `versionMinor` | `0x00` for v1.0. Additive within a fixed major (new flag bits, enum values, or providers only — see §3.3). |
 | 2 | uint8 | `providerCount` | `0x03` for v1.x (always Codex + Claude + Gemini). |
 | 3 | uint8 | `flags` | bit0 = stale, bit1 = bridge_error, bit2 = provider_missing, bits 3-7 reserved (bridge MUST write 0; watch MUST ignore). |
 | 4 | uint32 | `capturedAt` | Unix seconds when bridge captured this snapshot. |
