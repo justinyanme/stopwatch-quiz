@@ -6,12 +6,11 @@
 
 namespace stopwatch {
 
-// IMPORTANT: Confirm the actual GPIOs for KEYA / KEYB on the M5Stack StopWatch
-// before flashing in Phase C. M5Unified's pin map abstracts BtnA/BtnB but ext1
-// wake needs raw GPIO numbers. These are PLACEHOLDERS verified against the
-// M5Stack StopWatch schematic during integration.
-namespace { constexpr gpio_num_t kPinKeyA = GPIO_NUM_0;
-              constexpr gpio_num_t kPinKeyB = GPIO_NUM_46;
+// KEYA / KEYB GPIO numbers verified against M5Unified's per-board button-poll code
+// (M5Unified.cpp board_M5StopWatch branch): KEYA is GPIO2, KEYB is GPIO1, both
+// active-low. ext1 wake uses ANY_LOW which matches.
+namespace { constexpr gpio_num_t kPinKeyA = GPIO_NUM_2;
+              constexpr gpio_num_t kPinKeyB = GPIO_NUM_1;
 }
 
 void Power::begin() {
