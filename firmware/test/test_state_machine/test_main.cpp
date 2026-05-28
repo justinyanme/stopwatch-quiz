@@ -40,10 +40,19 @@ void test_longPressesSetFlags(void) {
     TEST_ASSERT_TRUE(app.wantsImmediateSleep());
 }
 
+void test_linkStatusDefaultsToNoBridgeAndMutates(void) {
+    App app;
+    app.begin();
+    TEST_ASSERT_EQUAL((int)LinkStatus::NoBridge, (int)app.linkStatus());
+    app.setLinkStatus(LinkStatus::Connected);
+    TEST_ASSERT_EQUAL((int)LinkStatus::Connected, (int)app.linkStatus());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_keyBShortCyclesForward);
     RUN_TEST(test_keyAShortCyclesBackward);
     RUN_TEST(test_longPressesSetFlags);
+    RUN_TEST(test_linkStatusDefaultsToNoBridgeAndMutates);
     return UNITY_END();
 }

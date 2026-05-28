@@ -1,6 +1,7 @@
 // firmware/src/Renderer.cpp
 #include "Renderer.h"
 #include <algorithm>
+#include <cstdio>
 
 namespace stopwatch {
 
@@ -33,6 +34,16 @@ void Renderer::drawRing(int cx, int cy, int radius, int stroke,
         // Map "12 o'clock clockwise" → start at -90°, sweep forward.
         sprite_.fillArc(cx, cy, radius, innerR, -90, -90 + (int)endDeg, fillColor);
     }
+}
+
+void Renderer::drawPill(int cx, int baselineY, const char *label, uint32_t color) {
+    if (!label) return;
+    char buf[40];
+    snprintf(buf, sizeof(buf), "\xE2\x97\x8F %s", label);
+    sprite_.setTextDatum(middle_center);
+    sprite_.setTextColor(color);
+    sprite_.setFont(&fonts::Font2);
+    sprite_.drawString(buf, cx, baselineY);
 }
 
 }  // namespace stopwatch

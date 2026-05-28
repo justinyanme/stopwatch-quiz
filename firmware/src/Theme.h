@@ -17,6 +17,10 @@ constexpr uint32_t kTextPrimary  = 0xFFFFFF;
 constexpr uint32_t kTextMuted    = 0x8A8D92;
 constexpr uint32_t kRingTrack    = 0x1E1E1E;
 
+constexpr uint32_t kPillStale    = 0xFFB37A;   // amber
+constexpr uint32_t kPillError    = 0xFF6666;   // red
+constexpr uint32_t kPillInfo     = 0x8A8D92;   // muted
+
 constexpr int kRingStroke    = 14;   // pixels
 constexpr int kRingOuterR    = 200;
 constexpr int kRingMiddleR   = 150;

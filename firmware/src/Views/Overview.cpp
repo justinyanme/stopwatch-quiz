@@ -1,5 +1,6 @@
 // firmware/src/Views/Overview.cpp
 #include "Overview.h"
+#include "../App.h"
 #include "../Theme.h"
 #include <cstdio>
 
@@ -30,9 +31,18 @@ float fractionOf(const ProviderSlot *p) {
     if (!p || !p->sessionPct.has_value()) return 0.0f;
     return (float)p->sessionPct.value() / 100.0f;
 }
+
+struct Pill { const char *label; uint32_t color; };
+Pill pillFor(LinkStatus link, const Snapshot &snap) {
+    if (link == LinkStatus::NoBridge)            return { "no bridge", theme::kPillInfo };
+    if (link == LinkStatus::LinkError)           return { "link error", theme::kPillError };
+    if (snap.isProviderMissing())                return { "no source", theme::kPillInfo };
+    if (snap.isStale() || snap.isBridgeError())  return { "stale", theme::kPillStale };
+    return { nullptr, 0 };
+}
 }  // namespace
 
-void drawOverview(Renderer &renderer, const Snapshot &snap) {
+void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
 
@@ -72,6 +82,11 @@ void drawOverview(Renderer &renderer, const Snapshot &snap) {
     c.setTextColor(theme::kCodex);  c.drawString("\xE2\x97\x8F CX", theme::kCenterX - 60, by);
     c.setTextColor(theme::kClaude); c.drawString("\xE2\x97\x8F CL", theme::kCenterX,      by);
     c.setTextColor(theme::kGemini); c.drawString("\xE2\x97\x8F GM", theme::kCenterX + 60, by);
+
+    auto pill = pillFor(link, snap);
+    renderer.drawPill(theme::kCenterX,
+                      theme::kCenterY + theme::kRingOuterR - 8,
+                      pill.label, pill.color);
 }
 
 }  // namespace stopwatch::views
