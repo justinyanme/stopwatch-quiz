@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import StopwatchBridge
 
 enum Fixtures {
 
@@ -31,6 +32,10 @@ enum Fixtures {
         let raw = try load(name, ext: "hex")
         let cleaned = String(decoding: raw, as: UTF8.self)
             .filter { !$0.isWhitespace }
+        guard cleaned.count % 2 == 0 else {
+            Issue.record("hex string has odd character count (\(cleaned.count))")
+            throw FixturesError.badHex
+        }
         var bytes = Data()
         var i = cleaned.startIndex
         while i < cleaned.endIndex {
@@ -45,7 +50,49 @@ enum Fixtures {
         return bytes
     }
 
-    static var fixturesURL: URL { fixturesDir }
-
     enum FixturesError: Error { case notFound, badHex }
+}
+
+extension NormalizedUsage {
+    static var threeProvidersFixture: NormalizedUsage {
+        .init(
+            capturedAt: Date(timeIntervalSince1970: 1748455822),
+            flags: [],
+            providers: [
+                .init(providerID: .codex,  status: .ok, sessionPct: 72, weekPct: 41,
+                      sessionResetAt: Date(timeIntervalSince1970: 1748467200),
+                      weekResetAt:    Date(timeIntervalSince1970: 1748538000),
+                      credits: 112.4, plan: .plus),
+                .init(providerID: .claude, status: .ok, sessionPct: 12, weekPct: 37,
+                      sessionResetAt: Date(timeIntervalSince1970: 1748502000),
+                      weekResetAt:    Date(timeIntervalSince1970: 1748696400),
+                      credits: nil, plan: .pro),
+                .init(providerID: .gemini, status: .ok, sessionPct: 8, weekPct: nil,
+                      sessionResetAt: Date(timeIntervalSince1970: 1748476800),
+                      weekResetAt: nil,
+                      credits: nil, plan: .free),
+            ]
+        )
+    }
+
+    static var codexOnlyFixture: NormalizedUsage {
+        .init(
+            capturedAt: Date(timeIntervalSince1970: 1748455822),
+            flags: [],
+            providers: [
+                .init(providerID: .codex, status: .ok, sessionPct: 72, weekPct: 41,
+                      sessionResetAt: Date(timeIntervalSince1970: 1748467200),
+                      weekResetAt:    Date(timeIntervalSince1970: 1748538000),
+                      credits: 112.4, plan: .plus),
+            ]
+        )
+    }
+
+    static var errorFixture: NormalizedUsage {
+        .init(
+            capturedAt: Date(timeIntervalSince1970: 1748455822),
+            flags: [.stale, .bridgeError],
+            providers: []
+        )
+    }
 }
