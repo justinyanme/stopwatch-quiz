@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-05-28T18:10:22Z",
+  "providers": [
+    {
+      "provider": "codex",
+      "status": { "indicator": "none" },
+      "usage": {
+        "primary":   { "usedPercent": 72, "resetsAt": "2026-05-28T21:15:00Z" },
+        "secondary": { "usedPercent": 41, "resetsAt": "2026-05-29T17:00:00Z" }
+      },
+      "credits":  { "remaining": 112.4 },
+      "plan":     "plus"
+    },
+    {
+      "provider": "claude",
+      "status": { "indicator": "none" },
+      "usage": {
+        "primary":   { "usedPercent": 12, "resetsAt": "2026-05-29T07:00:00Z" },
+        "secondary": { "usedPercent": 37, "resetsAt": "2026-05-31T13:00:00Z" }
+      },
+      "credits":  null,
+      "plan":     "pro"
+    },
+    {
+      "provider": "gemini",
+      "status": { "indicator": "none" },
+      "usage": {
+        "primary":   { "usedPercent": 8,  "resetsAt": "2026-05-29T00:00:00Z" },
+        "secondary": null
+      },
+      "credits":  null,
+      "plan":     "free"
+    }
+  ]
+}
