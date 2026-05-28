@@ -42,4 +42,23 @@ public enum SnapshotEncoder {
         out.append(UInt8((v >> 16) & 0xFF))
         out.append(UInt8((v >> 24) & 0xFF))
     }
+
+    /// Returns a valid 56-byte v1.0 snapshot showing all three providers as disabled
+    /// with `stale` flag set. Used as the initial GATT characteristic value so a watch
+    /// reading before the first real snapshot lands sees a well-formed (but flagged) frame
+    /// instead of zero bytes that look like versionMajor=0.
+    public static func staleEmpty() -> Data {
+        encode(NormalizedUsage(
+            capturedAt: Date(timeIntervalSince1970: 0),
+            flags: [.stale],
+            providers: [
+                .init(providerID: .codex,  status: .disabled, sessionPct: nil, weekPct: nil,
+                      sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
+                .init(providerID: .claude, status: .disabled, sessionPct: nil, weekPct: nil,
+                      sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
+                .init(providerID: .gemini, status: .disabled, sessionPct: nil, weekPct: nil,
+                      sessionResetAt: nil, weekResetAt: nil, credits: nil, plan: .unknown),
+            ]
+        ))
+    }
 }
