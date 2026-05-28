@@ -41,7 +41,7 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 | 0 | uint8 | `versionMajor` | `0x01` for v1.x. Structural; bumping breaks the watch. |
 | 1 | uint8 | `versionMinor` | `0x00` for v1.0. Additive; new trailing per-provider fields. |
 | 2 | uint8 | `providerCount` | `0x03` for v1.x (always Codex + Claude + Gemini). |
-| 3 | uint8 | `flags` | bit0 = stale, bit1 = bridge_error, bit2 = provider_missing, bits 3-7 reserved (must be 0). |
+| 3 | uint8 | `flags` | bit0 = stale, bit1 = bridge_error, bit2 = provider_missing, bits 3-7 reserved (bridge MUST write 0; watch MUST ignore). |
 | 4 | uint32 | `capturedAt` | Unix seconds when bridge captured this snapshot. |
 
 ### 3.2 Per-provider record (16 bytes each, repeated `providerCount` times)
@@ -54,15 +54,25 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 | 3 | uint8 | `weekPct` | 0–100; `0xFF` = unknown |
 | 4 | uint32 | `sessionResetAt` | Unix seconds; `0` = unknown |
 | 8 | uint32 | `weekResetAt` | Unix seconds; `0` = unknown |
-| 12 | uint16 | `credits` | value × 10 (so 112.4 → 1124); `0xFFFF` = unknown |
+| 12 | uint16 | `credits` | CodexBar credit balance × 10 (so 112.4 → 1124; one decimal of precision); `0xFFFF` = unknown. A value of `0x0000` means zero credits, not unknown. |
 | 14 | uint8 | `plan` | 0 = unknown, 1 = free, 2 = plus, 3 = pro, 4 = team, 5 = enterprise |
 | 15 | uint8 | `reserved` | `0x00` |
 
 ### 3.3 Versioning rules
 
-- Bridge always sends the highest (major, minor) it knows.
-- Watch refuses to decode any `versionMajor` greater than its own; renders "update firmware" instead.
-- Watch decodes only the per-provider bytes it knows; trailing bytes inside each record are ignored (using a known per-major record stride). This lets the bridge append new fields without forcing a reflash, as long as `versionMajor` is unchanged.
+- Bridge always sends the highest `(versionMajor, versionMinor)` it knows.
+
+- **`versionMajor`** governs structural compatibility:
+  - Any change to the header layout or to the per-provider record's byte stride (adding, removing, or reordering per-provider fields) requires a major bump.
+  - Watch refuses to decode any `versionMajor` greater than its own; renders an "update firmware" text screen instead.
+  - Watch refuses to decode any `versionMajor` less than its own only if it no longer carries the schema for that older major; otherwise it decodes using that older major's known layout. (For v1 there is only one major, so this case won't arise yet.)
+
+- **`versionMinor`** is additive within a fixed major and may change ONLY:
+  - New flag bits in the `flags` byte (older watches read them as 0 per the reserved-bits rule).
+  - New values in the `status` or `plan` enums (older watches treat unknown values as `status=ok` / `plan=unknown`).
+  - Additional providers (signalled by `providerCount` exceeding what the watch knows; the watch decodes only the providers whose `providerID` it recognizes).
+
+- **The per-provider record's stride is fixed per `versionMajor`.** Adding or reordering per-provider fields therefore requires a major bump, never a minor bump.
 
 ## 4. Test fixtures
 
