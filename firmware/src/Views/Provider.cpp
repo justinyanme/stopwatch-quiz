@@ -28,6 +28,15 @@ const char *planLabel(ProviderPlan plan) {
     }
 }
 
+// Per-provider names for the two wire usage slots (`sessionPct` / `weekPct`).
+// Codex / Claude: 5-hour session window + rolling week.
+// Gemini:         Pro model quota + Flash model quota.
+struct SlotLabels { const char *primary; const char *secondary; };
+SlotLabels slotLabelsFor(ProviderID id) {
+    if (id == ProviderID::Gemini) return { "PRO", "FLASH" };
+    return { "SESSION", "WEEK" };
+}
+
 void formatResetIn(char *buf, size_t bufSize, uint32_t resetAt, uint32_t now) {
     if (resetAt == 0 || resetAt <= now) { snprintf(buf, bufSize, "—"); return; }
     uint32_t delta = resetAt - now;
@@ -61,12 +70,15 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     uint32_t color    = theme::colorFor(id);
     uint32_t colorDim = theme::colorDimFor(id);
 
-    // Top: name + plan
+    SlotLabels labels = slotLabelsFor(id);
+
+    // Top: name + plan. Suppressed for Gemini to avoid colliding with the "PRO" slot label.
     c.setTextDatum(middle_center);
     c.setTextColor(color);
     c.setFont(&fonts::Font2);
     char header[24];
-    if (p && p->plan != ProviderPlan::Unknown) {
+    bool showPlan = p && p->plan != ProviderPlan::Unknown && id != ProviderID::Gemini;
+    if (showPlan) {
         snprintf(header, sizeof(header), "%s · %s", labelFor(id), planLabel(p->plan));
     } else {
         snprintf(header, sizeof(header), "%s", labelFor(id));
@@ -86,10 +98,10 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     c.fillCircle(theme::kCenterX, theme::kCenterY,
                  weekRadius - theme::kRingStroke - 6, theme::kCenterWell);
 
-    // Center: SESSION + big % + reset countdown — single stack, tight rhythm.
+    // Center: primary slot label + big % + reset countdown — single stack, tight rhythm.
     c.setTextColor(theme::kTextMuted);
     c.setFont(&fonts::Font2);
-    c.drawString("SESSION", theme::kCenterX, theme::kCenterY - 36);
+    c.drawString(labels.primary, theme::kCenterX, theme::kCenterY - 36);
 
     if (p && p->sessionPct.has_value()) {
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
@@ -124,15 +136,15 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
         c.drawString(buf, theme::kCenterX, theme::kCenterY + 48);
     }
 
-    // Bottom strap: week % + credits
+    // Bottom strap: secondary slot label + % + (optional) credits.
     int by = theme::kCenterY + theme::kRingOuterR - 30;
     char bottom[32];
     if (p) {
         if (p->creditsTimesTen.has_value()) {
-            snprintf(bottom, sizeof(bottom), "Week %u%% · %u cr",
-                     p->weekPct.value_or(0), p->creditsTimesTen.value() / 10);
+            snprintf(bottom, sizeof(bottom), "%s %u%% · %u cr",
+                     labels.secondary, p->weekPct.value_or(0), p->creditsTimesTen.value() / 10);
         } else if (p->weekPct.has_value()) {
-            snprintf(bottom, sizeof(bottom), "Week %u%%", p->weekPct.value());
+            snprintf(bottom, sizeof(bottom), "%s %u%%", labels.secondary, p->weekPct.value());
         } else {
             bottom[0] = '\0';
         }
