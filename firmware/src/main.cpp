@@ -1,33 +1,91 @@
 // firmware/src/main.cpp
 #include <Arduino.h>
 #include <M5Unified.h>
+#include "App.h"
+#include "BleClient.h"
+#include "Buttons.h"
+#include "Power.h"
 #include "Renderer.h"
+#include "SnapshotCodec.h"
+#include "SnapshotStore.h"
 #include "Theme.h"
 #include "Views/Overview.h"
+#include "Views/Provider.h"
 
-stopwatch::Renderer g_renderer;
-stopwatch::Snapshot g_snap;
+stopwatch::App         g_app;
+stopwatch::BleClient   g_ble;
+stopwatch::Renderer    g_renderer;
+stopwatch::Power       g_power;
+stopwatch::SnapshotStore g_store;
+stopwatch::Snapshot    g_snap;
+
+static void renderCurrent() {
+    using namespace stopwatch;
+    switch (g_app.currentView()) {
+        case ViewId::Overview: views::drawOverview(g_renderer, g_snap); break;
+        case ViewId::Codex:    views::drawProvider(g_renderer, g_snap, ProviderID::Codex);  break;
+        case ViewId::Claude:   views::drawProvider(g_renderer, g_snap, ProviderID::Claude); break;
+        case ViewId::Gemini:   views::drawProvider(g_renderer, g_snap, ProviderID::Gemini); break;
+    }
+    g_renderer.present();
+}
+
+static bool fetchAndApply(uint8_t scope) {
+    uint8_t buf[stopwatch::kSnapshotSize];
+    size_t len = 0;
+    auto rc = g_ble.fetch(scope, buf, sizeof(buf), len);
+    if (rc != stopwatch::BleClient::FetchResult::Ok) return false;
+    stopwatch::Snapshot snap;
+    if (stopwatch::decodeSnapshot(buf, len, snap) != stopwatch::DecodeResult::Ok) return false;
+    g_snap = snap;
+    g_store.save(buf, len);
+    return true;
+}
 
 void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     g_renderer.begin();
+    g_store.begin();
+    g_app.begin();
+    g_power.begin();
+    g_ble.begin();
 
-    // Hard-coded sample snapshot until BLE is wired up.
-    g_snap.versionMajor  = 1;
-    g_snap.providerCount = 3;
-    g_snap.providers[0]  = { stopwatch::ProviderID::Codex,  stopwatch::ProviderStatus::Ok,
-                             72, 41, 1748467200, 1748538000, 1124, stopwatch::ProviderPlan::Plus };
-    g_snap.providers[1]  = { stopwatch::ProviderID::Claude, stopwatch::ProviderStatus::Ok,
-                             12, 37, 1748502000, 1748696400, std::nullopt, stopwatch::ProviderPlan::Pro };
-    g_snap.providers[2]  = { stopwatch::ProviderID::Gemini, stopwatch::ProviderStatus::Ok,
-                             8, std::nullopt, 1748476800, std::nullopt, std::nullopt, stopwatch::ProviderPlan::Free };
+    // Load last cached snapshot for instant first paint.
+    uint8_t buf[stopwatch::kSnapshotSize];
+    size_t len = 0;
+    if (g_store.load(buf, sizeof(buf), len)) {
+        stopwatch::decodeSnapshot(buf, len, g_snap);
+    }
+    renderCurrent();
 
-    stopwatch::views::drawOverview(g_renderer, g_snap);
-    g_renderer.present();
+    // Fire a refresh in the background to get fresh data.
+    fetchAndApply(0x00);
+    renderCurrent();
 }
 
 void loop() {
-    M5.update();
-    delay(50);
+    using namespace stopwatch;
+    auto ev = pollButtons();
+    if (ev != ButtonEvent::None) {
+        g_power.noteActivity();
+        bool changed = g_app.handleEvent(ev);
+        if (g_app.wantsRefresh()) {
+            fetchAndApply(0x00);
+            g_app.clearRefreshRequest();
+            changed = true;
+        }
+        if (g_app.wantsImmediateSleep()) {
+            g_app.clearSleepRequest();
+            g_power.enterLightSleep();
+            renderCurrent();
+        } else if (changed) {
+            renderCurrent();
+        }
+    }
+    if (g_power.shouldSleep()) {
+        g_power.enterLightSleep();
+        renderCurrent();
+    }
+    delay(20);
 }
