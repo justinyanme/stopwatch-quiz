@@ -16,7 +16,7 @@ public actor CodexbarClient {
         case decode(Error)
     }
 
-    public init(port: UInt16, session: URLSession = .shared, timeout: TimeInterval = 5) {
+    public init(port: UInt16, session: URLSession = .shared, timeout: TimeInterval = 30) {
         self.port = port
         self.session = session
         self.timeout = timeout
@@ -54,13 +54,28 @@ public actor CodexbarClient {
     // MARK: - Decoding the CodexBar response shape
 
     private func decode(_ data: Data) throws -> NormalizedUsage {
-        let raw = try JSONDecoder.iso8601.decode(RawResponse.self, from: data)
-        var flagBits: SnapshotFlags = []
-        if raw.flags?.stale       == true { flagBits.insert(.stale) }
-        if raw.flags?.bridgeError == true { flagBits.insert(.bridgeError) }
-        if raw.providers.isEmpty           { flagBits.insert(.providerMissing) }
+        // Real `codexbar serve` returns a top-level JSON ARRAY of provider objects.
+        // Our test fixtures use a wrapped object. Try array first, fall back to wrapper.
+        let rawProviders: [RawResponse.Provider]
+        let rawFlags: RawResponse.Flags?
+        let rawCapturedAt: Date?
+        do {
+            rawProviders = try JSONDecoder.iso8601.decode([RawResponse.Provider].self, from: data)
+            rawFlags = nil
+            rawCapturedAt = nil
+        } catch {
+            let wrapped = try JSONDecoder.iso8601.decode(RawResponse.self, from: data)
+            rawProviders = wrapped.providers
+            rawFlags = wrapped.flags
+            rawCapturedAt = wrapped.capturedAt
+        }
 
-        let providers = raw.providers.compactMap { p -> NormalizedUsage.Provider? in
+        var flagBits: SnapshotFlags = []
+        if rawFlags?.stale       == true { flagBits.insert(.stale) }
+        if rawFlags?.bridgeError == true { flagBits.insert(.bridgeError) }
+        if rawProviders.isEmpty           { flagBits.insert(.providerMissing) }
+
+        let providers = rawProviders.compactMap { p -> NormalizedUsage.Provider? in
             guard let id = ProviderID(fromString: p.provider) else { return nil }
             return .init(
                 providerID:     id,
@@ -74,7 +89,7 @@ public actor CodexbarClient {
             )
         }
 
-        return .init(capturedAt: raw.capturedAt ?? Date(), flags: flagBits, providers: providers)
+        return .init(capturedAt: rawCapturedAt ?? Date(), flags: flagBits, providers: providers)
     }
 
     // MARK: - Wire shapes (subset of `codexbar serve` JSON we actually use)

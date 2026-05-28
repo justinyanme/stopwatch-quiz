@@ -28,16 +28,35 @@ public actor BridgeService {
             self.peripheral.delegate = self
         }
 
+        // Background prewarm loop: keeps the GATT snapshot fresh even when no
+        // watch is connected. Watch reads always see the latest cached frame
+        // (codexbar serve takes 5-15 s per call, so we cannot fetch on demand).
+        Task { await self.prewarmLoop() }
+
         // Block forever so launchd doesn't reap us.
         await withCheckedContinuation { (_: CheckedContinuation<Void, Never>) in }
     }
 
+    private func prewarmLoop() async {
+        // Give codexbar serve a moment to come up before the first fetch.
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        while !Task.isCancelled {
+            await handleRefresh(scope: 0)
+            // Refresh every 60s in the background.
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+        }
+    }
+
     fileprivate func handleRefresh(scope: UInt8) async {
         let s = CodexbarClient.Scope(rawByte: scope)
+        let started = Date()
         do {
             let usage = try await client.fetch(scope: s)
             let bytes = SnapshotEncoder.encode(usage)
             await peripheral.updateSnapshot(bytes)
+            let elapsed = Date().timeIntervalSince(started)
+            FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
+                                                        Int(scope), usage.providers.count, elapsed).utf8))
         } catch {
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             // Build an error snapshot with the bridge_error flag set, still 56 bytes (3 disabled providers).
