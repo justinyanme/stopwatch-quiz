@@ -46,9 +46,9 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     c.setTextDatum(middle_center);
 
     // Title
-    c.setFont(&fonts::Font2);
+    c.setFont(theme::kFontTitle);
     c.setTextColor(theme::kTextMuted);
-    c.drawString("SPEND & BURN", theme::kCenterX, theme::kCenterY - 96);
+    c.drawString("SPEND & BURN", theme::kCenterX, theme::kCenterY - 100);
 
     // Aggregate today's cents + 30d cents + 30d tokens; build combined history.
     uint32_t todayCents = 0, monthCents = 0, monthTokens = 0;
@@ -68,22 +68,24 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
 
     if (any) {
         char hero[16]; formatDollars(todayCents, hero, sizeof(hero), true);
-        c.setFont(&fonts::Font7);
+        c.setFont(theme::kFontHero);
         c.setTextColor(theme::kTextPrimary);
-        c.drawString(hero, theme::kCenterX, theme::kCenterY - 36);
-        c.setFont(&fonts::Font2);
+        c.drawString(hero, theme::kCenterX, theme::kCenterY - 44);
+        c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("today", theme::kCenterX, theme::kCenterY + 2);
+        c.drawString("today", theme::kCenterX, theme::kCenterY);
 
         char tok[16]; humanizeTokens(monthTokens, tok, sizeof(tok));
         char mo[16];  formatDollars(monthCents, mo, sizeof(mo), false);
         char line[40]; snprintf(line, sizeof(line), "30d %s \xC2\xB7 %s", mo, tok);
-        c.drawString(line, theme::kCenterX, theme::kCenterY + 28);
+        c.drawString(line, theme::kCenterX, theme::kCenterY + 32);
 
-        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 44, 180, 40,
+        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 56, 180, 40,
                       combined, kCostHistoryDays, maxCombined, theme::kTextPrimary);
 
-        // Per-provider split line.
+        // Per-provider split line — the densest row on the face, held at the micro
+        // tier so all three providers fit across the disc.
+        c.setFont(theme::kFontMicro);
         char split[48] = {0};
         for (uint8_t i = 0; i < cost.recordCount; ++i) {
             const CostRecord &r = cost.records[i];
@@ -92,9 +94,9 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
             snprintf(one, sizeof(one), "%s%.2s %s", (i ? " \xC2\xB7 " : ""), labelFor(r.id), d);
             strncat(split, one, sizeof(split) - strlen(split) - 1);
         }
-        c.drawString(split, theme::kCenterX, theme::kCenterY + 96);
+        c.drawString(split, theme::kCenterX, theme::kCenterY + 112);
     } else {
-        c.setFont(&fonts::Font4);
+        c.setFont(theme::kFontUnit);
         c.setTextColor(theme::kTextMuted);
         c.drawString("\xE2\x80\x94", theme::kCenterX, theme::kCenterY);
     }
@@ -113,41 +115,41 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
 
     // Header: brand mark + top model.
     {
-        c.setFont(&fonts::Font2);
+        c.setFont(theme::kFontTitle);
         const char *model = (r && r->topModel[0]) ? r->topModel : labelFor(id);
         int tw = c.textWidth(model);
         int totalW = icons::kSize28 + 8 + tw;
         int leftX = theme::kCenterX - totalW / 2;
-        c.drawBitmap(leftX, theme::kCenterY - 96 - icons::kSize28 / 2,
+        c.drawBitmap(leftX, theme::kCenterY - 100 - icons::kSize28 / 2,
                      icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
         c.setTextDatum(middle_left);
         c.setTextColor(theme::kTextMuted);
-        c.drawString(model, leftX + icons::kSize28 + 8, theme::kCenterY - 96);
+        c.drawString(model, leftX + icons::kSize28 + 8, theme::kCenterY - 100);
         c.setTextDatum(middle_center);
     }
 
     if (r && r->todayCents) {
         char hero[16]; formatDollars(r->todayCents.value(), hero, sizeof(hero), true);
-        c.setFont(&fonts::Font7);
+        c.setFont(theme::kFontHero);
         c.setTextColor(color);
-        c.drawString(hero, theme::kCenterX, theme::kCenterY - 40);
-        c.setFont(&fonts::Font2);
+        c.drawString(hero, theme::kCenterX, theme::kCenterY - 44);
+        c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("today", theme::kCenterX, theme::kCenterY - 4);
+        c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
 
         char mo[16]; formatDollars(r->monthCents.value_or(0), mo, sizeof(mo), false);
         char l1[24]; snprintf(l1, sizeof(l1), "30d   %s", mo);
-        c.drawString(l1, theme::kCenterX, theme::kCenterY + 24);
+        c.drawString(l1, theme::kCenterX, theme::kCenterY + 30);
         char tok[16]; humanizeTokens(r->monthTokens.value_or(0), tok, sizeof(tok));
         char l2[24]; snprintf(l2, sizeof(l2), "tok   %s", tok);
-        c.drawString(l2, theme::kCenterX, theme::kCenterY + 46);
+        c.drawString(l2, theme::kCenterX, theme::kCenterY + 62);
 
         int hist[kCostHistoryDays]; int maxV = 1;
         for (int d = 0; d < kCostHistoryDays; ++d) { hist[d] = r->history[d]; if (hist[d] > maxV) maxV = hist[d]; }
-        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 64, 180, 36,
+        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 88, 180, 36,
                       hist, kCostHistoryDays, maxV, color);
     } else {
-        c.setFont(&fonts::Font2);
+        c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
         c.drawString("waiting for Mac", theme::kCenterX, theme::kCenterY);
     }
@@ -163,7 +165,7 @@ void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY) {
     char line[40]; snprintf(line, sizeof(line), "today %s \xC2\xB7 %s", d, tok);
     c.setTextDatum(middle_center);
     c.setTextColor(theme::kTextMuted);
-    c.setFont(&fonts::Font2);
+    c.setFont(theme::kFontMicro);
     c.drawString(line, theme::kCenterX, baselineY);
 }
 

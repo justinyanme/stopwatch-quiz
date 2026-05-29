@@ -1,5 +1,6 @@
 // firmware/src/Renderer.cpp
 #include "Renderer.h"
+#include "Theme.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -48,12 +49,18 @@ void Renderer::drawRing(int cx, int cy, int radius, int stroke,
     sprite_.fillCircle(ex, ey, capR, fillColor);
 }
 
-void Renderer::drawPill(int cx, int baselineY, const char *label, uint32_t color) {
+void Renderer::drawPill(int cx, int cy, const char *label, uint32_t color) {
     if (!label) return;
+    sprite_.setFont(theme::kFontTitle);
+    int textW = sprite_.textWidth(label);
+    int h = sprite_.fontHeight() + 8;
+    int w = textW + 28;
+    // Tinted-dark chip: an opaque backdrop so the status reads even when it
+    // lands over a ring, and a consistent shape across every view.
+    sprite_.fillRoundRect(cx - w / 2, cy - h / 2, w, h, h / 2, theme::kRingTrack);
     sprite_.setTextDatum(middle_center);
     sprite_.setTextColor(color);
-    sprite_.setFont(&fonts::Font2);
-    sprite_.drawString(label, cx, baselineY);
+    sprite_.drawString(label, cx, cy);
 }
 
 }  // namespace stopwatch

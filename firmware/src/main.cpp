@@ -47,11 +47,11 @@ static void renderRefreshingOverlay(const char *label) {
     using namespace stopwatch;
     drawCurrentView();
     auto &c = g_renderer.canvas();
-    c.fillRect(0, theme::kCenterY + theme::kRingOuterR / 2 - 14,
-               M5.Display.width(), 28, 0x303030);
+    c.fillRect(0, theme::kCenterY + theme::kRingOuterR / 2 - 18,
+               M5.Display.width(), 36, 0x303030);
     c.setTextDatum(middle_center);
     c.setTextColor(theme::kTextPrimary);
-    c.setFont(&fonts::Font2);
+    c.setFont(theme::kFontTitle);
     c.drawString(label, theme::kCenterX, theme::kCenterY + theme::kRingOuterR / 2);
     g_renderer.present();
 }

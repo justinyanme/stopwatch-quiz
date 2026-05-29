@@ -29,6 +29,19 @@ constexpr int kRingInnerR    = 100;
 constexpr int kCenterX       = 233;  // 466 / 2
 constexpr int kCenterY       = 233;
 
+// ── Typography ──────────────────────────────────────────────────────────────
+// One scale for every view. The panel is a 1.43" 466×466 (~326 PPI) disc read
+// at arm's length, so the old 16 px Font2 body (~1.2 mm on glass) was the
+// readability floor: legible only on the big 7-seg metric, cramped everywhere
+// else. Non-hero text now steps up to Font4 (~26 px ≈ 2 mm). kFontMicro stays
+// at Font2 for the one or two dense lines the circle is too narrow to fit
+// wider. Centralised so the readability budget lives in a single place.
+inline constexpr auto kFontHero  = &fonts::Font7;   // 7-segment metric (digits only)
+inline constexpr auto kFontUnit  = &fonts::Font4;   // '%' / '--' set beside the hero
+inline constexpr auto kFontTitle = &fonts::Font4;   // names, slot + section labels, pills
+inline constexpr auto kFontBody  = &fonts::Font4;   // secondary metric lines
+inline constexpr auto kFontMicro = &fonts::Font2;   // dense captions (spend teaser, split)
+
 inline uint32_t colorFor(ProviderID id) {
     switch (id) {
         case ProviderID::Codex:  return kCodex;

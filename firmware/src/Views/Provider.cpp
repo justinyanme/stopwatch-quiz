@@ -75,10 +75,12 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
 
     SlotLabels labels = slotLabelsFor(id);
 
-    // Top: name + plan. Suppressed for Gemini to avoid colliding with the "PRO" slot label.
+    // Identity header (brand mark + name + plan) in the provider colour. Lives in
+    // the clear centre, not crammed into the narrow top of the disc, so it can be
+    // set at the label tier without grazing the rings or the round bezel.
+    // Plan is suppressed for Gemini to avoid colliding with its "PRO" slot label.
     c.setTextDatum(middle_center);
-    c.setTextColor(color);
-    c.setFont(&fonts::Font2);
+    c.setFont(theme::kFontTitle);
     char header[24];
     bool showPlan = p && p->plan != ProviderPlan::Unknown && id != ProviderID::Gemini;
     if (showPlan) {
@@ -86,7 +88,18 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     } else {
         snprintf(header, sizeof(header), "%s", labelFor(id));
     }
-    c.drawString(header, theme::kCenterX, 24);
+    {
+        constexpr int kHeaderY  = theme::kCenterY - 74;
+        constexpr int kIconGap  = 8;
+        int tw    = c.textWidth(header);
+        int leftX = theme::kCenterX - (icons::kSize28 + kIconGap + tw) / 2;
+        c.drawBitmap(leftX, kHeaderY - icons::kSize28 / 2,
+                     icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
+        c.setTextDatum(middle_left);
+        c.setTextColor(color);
+        c.drawString(header, leftX + icons::kSize28 + kIconGap, kHeaderY);
+        c.setTextDatum(middle_center);
+    }
 
     // Rings: outer = session (live), inner = week (dimmed reference)
     int weekRadius = theme::kRingOuterR - theme::kRingStroke * 2 - 4;
@@ -97,24 +110,11 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     renderer.drawRing(theme::kCenterX, theme::kCenterY, weekRadius,         theme::kRingStroke,
                       theme::kRingTrack, colorDim, weekFrac);
 
-    // Top of center stack: brand mark + cap-type label inline. Icon is the
-    // provider tag, text is the cap type. Centered as one unit at y - 36.
-    {
-        constexpr int kLabelY    = theme::kCenterY - 36;
-        constexpr int kIconTextGap = 8;
-        c.setFont(&fonts::Font2);
-        int tw = c.textWidth(labels.primary);
-        int totalW = icons::kSize28 + kIconTextGap + tw;
-        int leftX  = theme::kCenterX - totalW / 2;
-
-        c.drawBitmap(leftX, kLabelY - icons::kSize28 / 2,
-                     icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
-
-        c.setTextDatum(middle_left);
-        c.setTextColor(theme::kTextMuted);
-        c.drawString(labels.primary, leftX + icons::kSize28 + kIconTextGap, kLabelY);
-        c.setTextDatum(middle_center);
-    }
+    // What the hero number measures, set directly above it. The brand mark now
+    // lives in the identity header, so this is the cap-type label on its own.
+    c.setFont(theme::kFontTitle);
+    c.setTextColor(theme::kTextMuted);
+    c.drawString(labels.primary, theme::kCenterX, theme::kCenterY - 30);
 
     if (p && p->sessionPct.has_value()) {
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
@@ -122,35 +122,37 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
         snprintf(digits, sizeof(digits), "%u", p->sessionPct.value());
         c.setTextColor(color);
 
-        c.setFont(&fonts::Font7);
+        c.setFont(theme::kFontHero);
         int dw = c.textWidth(digits);
-        c.setFont(&fonts::Font4);
+        c.setFont(theme::kFontUnit);
         int pw = c.textWidth("%");
         constexpr int kGap = 6;
         int leftX = theme::kCenterX - (dw + kGap + pw) / 2;
 
         c.setTextDatum(middle_left);
-        c.setFont(&fonts::Font7);
-        c.drawString(digits, leftX, theme::kCenterY + 4);
-        c.setFont(&fonts::Font4);
-        c.drawString("%", leftX + dw + kGap, theme::kCenterY + 14);
+        c.setFont(theme::kFontHero);
+        c.drawString(digits, leftX, theme::kCenterY + 16);
+        c.setFont(theme::kFontUnit);
+        c.drawString("%", leftX + dw + kGap, theme::kCenterY + 26);
         c.setTextDatum(middle_center);
     } else {
         c.setTextColor(theme::kTextMuted);
-        c.setFont(&fonts::Font4);
-        c.drawString("--", theme::kCenterX, theme::kCenterY + 4);
+        c.setFont(theme::kFontUnit);
+        c.drawString("--", theme::kCenterX, theme::kCenterY + 16);
     }
 
     if (p && p->sessionResetAt.has_value()) {
         char buf[24];
         formatResetIn(buf, sizeof(buf), p->sessionResetAt.value(), snap.capturedAt);
         c.setTextColor(theme::kTextMuted);
-        c.setFont(&fonts::Font2);
-        c.drawString(buf, theme::kCenterX, theme::kCenterY + 48);
+        c.setFont(theme::kFontBody);
+        c.drawString(buf, theme::kCenterX, theme::kCenterY + 60);
     }
 
-    // Bottom strap: secondary slot label + % + (optional) credits.
-    int by = theme::kCenterY + theme::kRingOuterR - 30;
+    // Secondary slot label + % + (optional) credits. Kept inside the clear centre
+    // band (the disc is too narrow for the label tier down at the ring) and above
+    // the spend teaser.
+    int by = theme::kCenterY + 96;
     char bottom[32];
     if (p) {
         if (p->creditsTimesTen.has_value()) {
@@ -163,13 +165,14 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
         }
         if (bottom[0]) {
             c.setTextColor(theme::kTextMuted);
-            c.setFont(&fonts::Font2);
+            c.setFont(theme::kFontBody);
             c.drawString(bottom, theme::kCenterX, by);
         }
     }
 
-    // Spend teaser sits above the bottom strap (Codex/Claude only).
-    drawSpendTeaser(c, cost, theme::kCenterY + theme::kRingOuterR - 64);
+    // Spend teaser: micro tier, tucked between the secondary strap and the pill
+    // (Codex/Claude only; no-op when there's no cost record).
+    drawSpendTeaser(c, cost, theme::kCenterY + 136);
 
     auto pill = pillFor(link, snap);
     renderer.drawPill(theme::kCenterX,

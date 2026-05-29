@@ -18,8 +18,10 @@ public:
                   uint32_t trackColor, uint32_t fillColor,
                   float fillFraction);
 
-    /// Draws a small "● label" pill at (cx, baselineY). No-op if label is null.
-    void drawPill(int cx, int baselineY, const char *label, uint32_t color);
+    /// Draws a status chip (rounded fill + colored label) centered at (cx, cy).
+    /// Label tier (Font4) so it stays readable even where it sits over a ring.
+    /// No-op if label is null.
+    void drawPill(int cx, int cy, const char *label, uint32_t color);
 
 private:
     M5Canvas sprite_{&M5.Display};

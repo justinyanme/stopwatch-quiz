@@ -78,30 +78,30 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
         snprintf(digits, sizeof(digits), "%u", worst->sessionPct.value());
         c.setTextColor(theme::colorFor(worst->id));
 
-        c.setFont(&fonts::Font7);
+        c.setFont(theme::kFontHero);
         int dw = c.textWidth(digits);
-        c.setFont(&fonts::Font4);
+        c.setFont(theme::kFontUnit);
         int pw = c.textWidth("%");
         constexpr int kGap = 6;
         int leftX = theme::kCenterX - (dw + kGap + pw) / 2;
 
         c.setTextDatum(middle_left);
-        c.setFont(&fonts::Font7);
+        c.setFont(theme::kFontHero);
         c.drawString(digits, leftX, theme::kCenterY + 8);
-        c.setFont(&fonts::Font4);
+        c.setFont(theme::kFontUnit);
         c.drawString("%", leftX + dw + kGap, theme::kCenterY + 18);
         c.setTextDatum(middle_center);
     } else {
         c.setTextColor(theme::kTextMuted);
-        c.setFont(&fonts::Font2);
-        c.drawString("SESSION", theme::kCenterX, theme::kCenterY - 32);
-        c.setFont(&fonts::Font4);
+        c.setFont(theme::kFontTitle);
+        c.drawString("SESSION", theme::kCenterX, theme::kCenterY - 36);
+        c.setFont(theme::kFontUnit);
         c.drawString("--", theme::kCenterX, theme::kCenterY + 8);
     }
 
     // Bottom strip: live session percentages, in provider colors. Same arrangement as rings (outer→inner).
-    c.setFont(&fonts::Font2);
-    int by = theme::kCenterY + theme::kRingOuterR - 36;
+    c.setFont(theme::kFontBody);
+    int by = theme::kCenterY + theme::kRingOuterR - 41;
     auto drawMetric = [&](int x, const ProviderSlot *p, uint32_t color) {
         char buf[8];
         if (p && p->sessionPct.has_value()) snprintf(buf, sizeof(buf), "%u%%", p->sessionPct.value());
