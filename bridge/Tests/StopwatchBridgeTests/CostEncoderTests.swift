@@ -37,6 +37,11 @@ import Testing
         #expect(bytes[131] == 125)               // 6000/48 = 125
     }
 
+    @Test func costFixtureMatchesSavedHex() throws {
+        let expected = try Fixtures.loadHex("codexbar-cost-two")
+        #expect(CostEncoder.encode(.costFixtureTwo) == expected)
+    }
+
     @Test func unknownsEncodeAsSentinels() {
         let cost = NormalizedCost(
             capturedAt: Date(timeIntervalSince1970: 0), flags: [.stale],
