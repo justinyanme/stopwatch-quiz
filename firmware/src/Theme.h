@@ -42,6 +42,12 @@ inline constexpr auto kFontTitle = &fonts::Font4;   // names, slot + section lab
 inline constexpr auto kFontBody  = &fonts::Font4;   // secondary metric lines
 inline constexpr auto kFontMicro = &fonts::Font2;   // dense captions (spend teaser, split)
 
+// '$' is always drawn from this face. M5GFX bundles the TFT_eSPI fonts, whose
+// glyph at 0x24 is a '£' by default; Font2 (Font16) is the only one here built
+// with the dollar override (TFT_ESPI_FONT2_DOLLAR), so Font4/Font6 render '£'
+// and Font7 has no currency glyph at all. Never set a '$' in another face.
+inline constexpr auto kFontDollar = &fonts::Font2;
+
 inline uint32_t colorFor(ProviderID id) {
     switch (id) {
         case ProviderID::Codex:  return kCodex;

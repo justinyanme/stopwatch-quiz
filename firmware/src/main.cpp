@@ -100,7 +100,7 @@ static bool fetchCostAndApply() {
 static void ensureCostLoaded() {
     using namespace stopwatch;
     if (!isSpendView(g_app.currentView()) || g_costLoaded) return;
-    renderRefreshingOverlay("Loading $\xE2\x80\xA6");
+    renderRefreshingOverlay("Loading cost\xE2\x80\xA6");
     fetchCostAndApply();
 }
 

@@ -38,6 +38,63 @@ void drawSparkline(M5Canvas &c, int x, int y, int w, int h,
         c.fillRect(x + i * barW, y + (h - bh), barW > 1 ? barW - 1 : 1, bh, color);
     }
 }
+
+// Font7 (7-segment) has no '$' and Font4's 0x24 is a '£' (see Theme.h), so the
+// sign is set in kFontDollar (Font2) and raised like a price superscript, with
+// the big digits in Font7. Centered on cx; digits vertically centered on y.
+void drawMoneyHero(M5Canvas &c, uint32_t cents, int cx, int y, uint32_t color) {
+    char money[16]; formatDollars(cents, money, sizeof(money), true);
+    const char *digits = (money[0] == '$') ? money + 1 : money;
+    constexpr int kGap = 4;
+
+    c.setFont(theme::kFontDollar);
+    int signW = c.textWidth("$");
+    c.setFont(theme::kFontHero);
+    int digitsW   = c.textWidth(digits);
+    int digitsTop = y - c.fontHeight() / 2;
+    int leftX     = cx - (signW + kGap + digitsW) / 2;
+
+    c.setTextColor(color);
+    c.setFont(theme::kFontDollar);
+    c.setTextDatum(top_left);
+    c.drawString("$", leftX, digitsTop);
+    c.setFont(theme::kFontHero);
+    c.setTextDatum(middle_left);
+    c.drawString(digits, leftX + signW + kGap, y);
+    c.setTextDatum(middle_center);
+}
+
+// Draws `s` centered at (cx, y) in `numFont`, but renders its '$' from
+// kFontDollar (Font2) — the only built-in face whose 0x24 is a dollar, not a
+// '£'. Assumes a single '$', which holds for our currency strings.
+void drawDollarLine(M5Canvas &c, const char *s, int cx, int y,
+                    const lgfx::RLEfont *numFont, uint32_t color) {
+    c.setTextColor(color);
+    const char *sign = strchr(s, '$');
+    if (!sign) {
+        c.setFont(numFont);
+        c.setTextDatum(middle_center);
+        c.drawString(s, cx, y);
+        return;
+    }
+    char before[48];
+    size_t n = (size_t)(sign - s);
+    if (n >= sizeof(before)) n = sizeof(before) - 1;
+    memcpy(before, s, n);
+    before[n] = '\0';
+    const char *after = sign + 1;
+
+    c.setFont(numFont);            int wBefore = c.textWidth(before);
+    c.setFont(theme::kFontDollar); int wSign   = c.textWidth("$");
+    c.setFont(numFont);            int wAfter  = c.textWidth(after);
+    int x = cx - (wBefore + wSign + wAfter) / 2;
+
+    c.setTextDatum(middle_left);
+    c.setFont(numFont);            c.drawString(before, x, y); x += wBefore;
+    c.setFont(theme::kFontDollar); c.drawString("$", x, y);    x += wSign;
+    c.setFont(numFont);            c.drawString(after, x, y);
+    c.setTextDatum(middle_center);
+}
 }  // namespace
 
 void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus link) {
@@ -67,10 +124,7 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     }
 
     if (any) {
-        char hero[16]; formatDollars(todayCents, hero, sizeof(hero), true);
-        c.setFont(theme::kFontHero);
-        c.setTextColor(theme::kTextPrimary);
-        c.drawString(hero, theme::kCenterX, theme::kCenterY - 44);
+        drawMoneyHero(c, todayCents, theme::kCenterX, theme::kCenterY - 44, theme::kTextPrimary);
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
         c.drawString("today", theme::kCenterX, theme::kCenterY);
@@ -78,7 +132,7 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
         char tok[16]; humanizeTokens(monthTokens, tok, sizeof(tok));
         char mo[16];  formatDollars(monthCents, mo, sizeof(mo), false);
         char line[40]; snprintf(line, sizeof(line), "30d %s \xC2\xB7 %s", mo, tok);
-        c.drawString(line, theme::kCenterX, theme::kCenterY + 32);
+        drawDollarLine(c, line, theme::kCenterX, theme::kCenterY + 32, theme::kFontBody, theme::kTextMuted);
 
         drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 56, 180, 40,
                       combined, kCostHistoryDays, maxCombined, theme::kTextPrimary);
@@ -129,17 +183,14 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
     }
 
     if (r && r->todayCents) {
-        char hero[16]; formatDollars(r->todayCents.value(), hero, sizeof(hero), true);
-        c.setFont(theme::kFontHero);
-        c.setTextColor(color);
-        c.drawString(hero, theme::kCenterX, theme::kCenterY - 44);
+        drawMoneyHero(c, r->todayCents.value(), theme::kCenterX, theme::kCenterY - 44, color);
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
         c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
 
         char mo[16]; formatDollars(r->monthCents.value_or(0), mo, sizeof(mo), false);
         char l1[24]; snprintf(l1, sizeof(l1), "30d   %s", mo);
-        c.drawString(l1, theme::kCenterX, theme::kCenterY + 30);
+        drawDollarLine(c, l1, theme::kCenterX, theme::kCenterY + 30, theme::kFontBody, theme::kTextMuted);
         char tok[16]; humanizeTokens(r->monthTokens.value_or(0), tok, sizeof(tok));
         char l2[24]; snprintf(l2, sizeof(l2), "tok   %s", tok);
         c.drawString(l2, theme::kCenterX, theme::kCenterY + 62);
