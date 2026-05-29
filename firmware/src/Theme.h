@@ -66,4 +66,21 @@ inline uint32_t colorDimFor(ProviderID id) {
     return kRingTrack;
 }
 
+// Brand-ish accent per known API provider; generic → muted grey (renders an
+// initials chip instead of a colored dot in the wallet list).
+inline uint32_t balanceColorFor(BalanceKind k) {
+    switch (k) {
+        case BalanceKind::OpenRouter:  return 0x7AA2FF;  // light blue
+        case BalanceKind::DeepSeek:    return 0x4D6BFE;  // indigo
+        case BalanceKind::Groq:        return 0xF55036;  // orange-red
+        case BalanceKind::Together:    return 0xA78BFA;  // violet
+        case BalanceKind::Fireworks:   return 0xFF7A59;  // ember
+        case BalanceKind::SiliconFlow: return 0x26C2A3;  // teal
+        case BalanceKind::Moonshot:    return 0xC9CDD2;  // pale
+        case BalanceKind::Zhipu:       return 0x5B8DEF;  // steel
+        case BalanceKind::Generic:     return kTextMuted;
+    }
+    return kTextMuted;
+}
+
 }  // namespace stopwatch::theme
