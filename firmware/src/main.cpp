@@ -14,6 +14,10 @@
 #include "Views/Provider.h"
 #include "Views/Spend.h"
 #include "CostCodec.h"
+#include "BalanceCodec.h"
+#include "BalanceFormat.h"
+#include "TouchScroll.h"
+#include "Views/Balances.h"
 
 stopwatch::App         g_app;
 stopwatch::BleClient   g_ble;
@@ -23,6 +27,9 @@ stopwatch::SnapshotStore g_store;
 stopwatch::Snapshot    g_snap;
 stopwatch::CostSnapshot g_cost;
 bool                    g_costLoaded = false;
+stopwatch::BalanceSnapshot g_balance;
+bool                       g_balanceLoaded = false;
+stopwatch::TouchScroll     g_balScroll;
 
 static void drawCurrentView() {
     using namespace stopwatch;
@@ -35,6 +42,11 @@ static void drawCurrentView() {
         case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link, g_cost.find(ProviderID::Claude)); break;
         case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link); break;
         case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link, nullptr); break;
+        case ViewId::Balances: {
+            int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
+            g_balScroll.setBounds(contentH, theme::kRingOuterR);
+            break;
+        }
     }
 }
 
@@ -104,10 +116,34 @@ static void ensureCostLoaded() {
     fetchCostAndApply();
 }
 
+static bool fetchBalancesAndApply() {
+    uint8_t buf[stopwatch::kBalanceSnapshotMaxSize];
+    size_t len = 0;
+    if (g_ble.fetchBalances(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
+    stopwatch::BalanceSnapshot bs;
+    if (stopwatch::decodeBalanceSnapshot(buf, len, bs) != stopwatch::BalanceDecodeResult::Ok) return false;
+    g_balance = bs;
+    g_store.save("bal", buf, len);
+    g_balanceLoaded = true;
+    return true;
+}
+
+// On first entry to the Balances screen this wake-session, pull balances once.
+static void ensureBalanceLoaded() {
+    using namespace stopwatch;
+    if (!isBalanceView(g_app.currentView()) || g_balanceLoaded) return;
+    renderRefreshingOverlay("Loading balances\xE2\x80\xA6");
+    fetchBalancesAndApply();
+}
+
 static bool applyRefreshRequest(const char *label) {
     if (!g_app.wantsRefresh()) return false;
     renderRefreshingOverlay(label);
-    fetchAndApply(0x00);
+    if (stopwatch::isBalanceView(g_app.currentView())) {
+        fetchBalancesAndApply();
+    } else {
+        fetchAndApply(0x00);
+    }
     g_app.clearRefreshRequest();
     return true;
 }
@@ -116,6 +152,8 @@ static void enterSleepAndRefreshOnWake() {
     g_power.enterLightSleep();
     g_app.noteWakeFromSleep();
     g_costLoaded = false;
+    g_balanceLoaded = false;
+    g_balScroll.reset();
     applyRefreshRequest("Refreshing\xE2\x80\xA6");
     ensureCostLoaded();
     renderCurrent();
@@ -184,6 +222,11 @@ void setup() {
     if (g_store.load("cost", cbuf, sizeof(cbuf), clen)) {
         stopwatch::decodeCostSnapshot(cbuf, clen, g_cost);  // shown until first fresh fetch
     }
+    uint8_t bbuf[stopwatch::kBalanceSnapshotMaxSize];
+    size_t blen = 0;
+    if (g_store.load("bal", bbuf, sizeof(bbuf), blen)) {
+        stopwatch::decodeBalanceSnapshot(bbuf, blen, g_balance);
+    }
     renderCurrent();
     Serial.println("[stopwatch-fw] first render done; starting BLE fetch");
 
@@ -201,19 +244,36 @@ void loop() {
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();
         bool changed = g_app.handleEvent(ev);
-        if (applyRefreshRequest("Refreshing\xE2\x80\xA6")) {
-            changed = true;
-        }
+        if (applyRefreshRequest("Refreshing\xE2\x80\xA6")) changed = true;
         if (g_app.wantsImmediateSleep()) {
             g_app.clearSleepRequest();
             enterSleepAndRefreshOnWake();
         } else if (changed) {
+            if (!isBalanceView(g_app.currentView())) g_balScroll.reset();
             ensureCostLoaded();
+            ensureBalanceLoaded();
             renderCurrent();
         }
     }
-    if (g_power.shouldSleep()) {
-        enterSleepAndRefreshOnWake();
+
+    // Touch: only meaningful on the Balances screen; drives the scroll model.
+    if (isBalanceView(g_app.currentView())) {
+        M5.update();
+        auto t = M5.Touch.getDetail();
+        if (t.isPressed()) {
+            g_power.noteActivity();
+            if (t.wasPressed()) g_balScroll.onPress(t.y);
+            else                g_balScroll.onMove(t.y);
+            renderCurrent();
+        } else if (t.wasReleased()) {
+            g_balScroll.onRelease();
+        }
+        if (!g_balScroll.isResting()) {
+            g_balScroll.tick(20);
+            renderCurrent();
+        }
     }
+
+    if (g_power.shouldSleep()) enterSleepAndRefreshOnWake();
     delay(20);
 }

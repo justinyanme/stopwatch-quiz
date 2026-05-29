@@ -20,6 +20,9 @@ public:
     /// Like fetch(), but writes the cost trigger scope and reads CostSnapshot.
     FetchResult fetchCost(uint8_t *outBytes, size_t bufSize, size_t &outLen);
 
+    /// Like fetchCost(), but writes the balance trigger scope and reads BalanceSnapshot.
+    FetchResult fetchBalances(uint8_t *outBytes, size_t bufSize, size_t &outLen);
+
 private:
     FetchResult fetchInto(const char *charUuid, uint8_t scope,
                           uint8_t *outBytes, size_t bufSize, size_t &outLen);

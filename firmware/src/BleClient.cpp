@@ -77,4 +77,8 @@ BleClient::FetchResult BleClient::fetchCost(uint8_t *outBytes, size_t bufSize, s
     return fetchInto(kCostSnapshotUUID, kTriggerScopeCost, outBytes, bufSize, outLen);
 }
 
+BleClient::FetchResult BleClient::fetchBalances(uint8_t *outBytes, size_t bufSize, size_t &outLen) {
+    return fetchInto(kBalanceSnapshotUUID, kTriggerScopeBalances, outBytes, bufSize, outLen);
+}
+
 }  // namespace stopwatch
