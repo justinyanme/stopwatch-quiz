@@ -6,7 +6,12 @@
 
 namespace stopwatch {
 
-enum class ViewId : uint8_t { Overview = 0, Codex = 1, Claude = 2, Gemini = 3 };
+enum class ViewId : uint8_t {
+    Overview = 0, TotalSpend = 1,
+    Codex = 2, CodexCost = 3,
+    Claude = 4, ClaudeCost = 5,
+    Gemini = 6,
+};
 
 enum class LinkStatus : uint8_t {
     Connected,    // last fetch returned Ok
@@ -37,5 +42,8 @@ private:
 
 constexpr ViewId nextView(ViewId v);
 constexpr ViewId prevView(ViewId v);
+constexpr bool isSpendView(ViewId v) {
+    return v == ViewId::TotalSpend || v == ViewId::CodexCost || v == ViewId::ClaudeCost;
+}
 
 }  // namespace stopwatch

@@ -5,26 +5,30 @@
 using namespace stopwatch;
 
 void test_keyBShortCyclesForward(void) {
-    App app;
-    app.begin();
-    TEST_ASSERT_EQUAL((int)ViewId::Overview, (int)app.currentView());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort));
-    TEST_ASSERT_EQUAL((int)ViewId::Codex, (int)app.currentView());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort));
-    TEST_ASSERT_EQUAL((int)ViewId::Claude, (int)app.currentView());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort));
-    TEST_ASSERT_EQUAL((int)ViewId::Gemini, (int)app.currentView());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort));
-    TEST_ASSERT_EQUAL((int)ViewId::Overview, (int)app.currentView());
+    App app; app.begin();
+    ViewId order[] = { ViewId::Overview, ViewId::TotalSpend, ViewId::Codex, ViewId::CodexCost,
+                       ViewId::Claude, ViewId::ClaudeCost, ViewId::Gemini, ViewId::Overview };
+    for (int i = 0; i < 7; ++i) {
+        TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort));
+        TEST_ASSERT_EQUAL((int)order[i + 1], (int)app.currentView());
+    }
 }
 
 void test_keyAShortCyclesBackward(void) {
-    App app;
-    app.begin();
+    App app; app.begin();
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort));
     TEST_ASSERT_EQUAL((int)ViewId::Gemini, (int)app.currentView());
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort));
-    TEST_ASSERT_EQUAL((int)ViewId::Claude, (int)app.currentView());
+    TEST_ASSERT_EQUAL((int)ViewId::ClaudeCost, (int)app.currentView());
+}
+
+void test_isSpendView(void) {
+    TEST_ASSERT_TRUE(isSpendView(ViewId::TotalSpend));
+    TEST_ASSERT_TRUE(isSpendView(ViewId::CodexCost));
+    TEST_ASSERT_TRUE(isSpendView(ViewId::ClaudeCost));
+    TEST_ASSERT_FALSE(isSpendView(ViewId::Overview));
+    TEST_ASSERT_FALSE(isSpendView(ViewId::Codex));
+    TEST_ASSERT_FALSE(isSpendView(ViewId::Gemini));
 }
 
 void test_longPressesSetFlags(void) {
@@ -63,5 +67,6 @@ int main(int, char **) {
     RUN_TEST(test_longPressesSetFlags);
     RUN_TEST(test_wakeFromSleepRequestsRefresh);
     RUN_TEST(test_linkStatusDefaultsToNoBridgeAndMutates);
+    RUN_TEST(test_isSpendView);
     return UNITY_END();
 }
