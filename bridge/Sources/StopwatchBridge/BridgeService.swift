@@ -67,6 +67,13 @@ public actor BridgeService {
             FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
                                                         Int(scope), usage.providers.count, elapsed).utf8))
         } catch {
+            if CodexbarClient.isCancellation(error) {
+                // A newer trigger superseded this fetch (trigger writes are serialized by
+                // cancelling the in-flight one). Not a failure — the superseding refresh
+                // updates the snapshot; don't mark stale or cascade to a cost fetch.
+                FileHandle.standardOutput.write(Data("fetch superseded by newer trigger (scope=\(scope))\n".utf8))
+                return
+            }
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             await peripheral.updateSnapshot(snapshotCache.recordFailure())
         }
@@ -82,6 +89,10 @@ public actor BridgeService {
             await peripheral.updateCostSnapshot(costCache.recordSuccess(cost))
             FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
         } catch {
+            if CodexbarClient.isCancellation(error) {
+                FileHandle.standardOutput.write(Data("cost fetch superseded by newer trigger\n".utf8))
+                return
+            }
             FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
             await peripheral.updateCostSnapshot(costCache.recordFailure())
         }

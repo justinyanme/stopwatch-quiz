@@ -34,4 +34,14 @@ import Testing
         ])
         #expect(model == "gpt-5.5")
     }
+
+    @Test func detectsCancellationButNotRealFailures() {
+        #expect(CodexbarClient.isCancellation(CancellationError()))
+        #expect(CodexbarClient.isCancellation(URLError(.cancelled)))
+        #expect(CodexbarClient.isCancellation(CodexbarClient.FetchError.transport(URLError(.cancelled))))
+        // Real failures must NOT be treated as cancellation:
+        #expect(!CodexbarClient.isCancellation(URLError(.timedOut)))
+        #expect(!CodexbarClient.isCancellation(CodexbarClient.FetchError.transport(URLError(.timedOut))))
+        #expect(!CodexbarClient.isCancellation(CodexbarClient.FetchError.http(500)))
+    }
 }

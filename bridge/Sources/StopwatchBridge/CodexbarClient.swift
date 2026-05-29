@@ -224,6 +224,17 @@ public actor CodexbarClient {
         return totals.sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }.first?.key
     }
 
+    /// True if `error` is intentional task cancellation (a newer trigger superseded this
+    /// fetch), not a real failure. URLSession surfaces cancellation as `URLError(.cancelled)`,
+    /// which `fetch`/`fetchCost` wrap in `FetchError.transport`.
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if (error as? URLError)?.code == .cancelled { return true }
+        if case let FetchError.transport(inner) = error,
+           (inner as? URLError)?.code == .cancelled { return true }
+        return false
+    }
+
     private let port: UInt16
     private let session: URLSession
     private let timeout: TimeInterval
