@@ -117,3 +117,23 @@ extension NormalizedCost {
         )
     }
 }
+
+extension NormalizedBalance {
+    /// Round-number fixture for byte-exact encoder assertions.
+    static var balanceFixtureTwo: NormalizedBalance {
+        .init(
+            capturedAt: Date(timeIntervalSince1970: 1748455822),
+            flags: [],
+            providers: [
+                .init(kind: .openrouter, name: "OpenRouter", status: .ok,
+                      currencyCode: "USD", currencyDecimals: 2,
+                      remaining: 42.10, usage: 7.90,
+                      updatedAt: Date(timeIntervalSince1970: 1748455822), isLow: false),
+                .init(kind: .deepseek, name: "DeepSeek", status: .ok,
+                      currencyCode: "CNY", currencyDecimals: 2,
+                      remaining: 318.50, usage: nil,
+                      updatedAt: Date(timeIntervalSince1970: 1748455822), isLow: false),
+            ]
+        )
+    }
+}

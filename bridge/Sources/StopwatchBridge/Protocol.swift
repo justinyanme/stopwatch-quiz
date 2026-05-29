@@ -32,6 +32,7 @@ public enum Protocol {
     public static let balanceRecordSize  = 36
     public static let balanceMaxRecords  = 16
     public static let triggerScopeBalances: UInt8 = 0x05
+    public static let balanceRecordFlagLow: UInt8 = 0b0000_0001
 }
 
 public struct SnapshotFlags: OptionSet, Sendable {
