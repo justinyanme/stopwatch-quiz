@@ -121,6 +121,35 @@ public actor CodexbarClient {
         }
     }
 
+    /// Buckets sparse daily (date string, USD) into a dense `days`-length array,
+    /// index `days-1` = anchor's UTC day, older days toward index 0. Out-of-window dropped.
+    static func alignDailyHistory(_ daily: [(date: String, costUSD: Double)],
+                                  anchor: Date, days: Int = 30) -> [Double] {
+        var out = [Double](repeating: 0, count: days)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(identifier: "UTC")!
+        fmt.dateFormat = "yyyy-MM-dd"
+        let today = cal.startOfDay(for: anchor)
+        for entry in daily {
+            guard let d = fmt.date(from: entry.date) else { continue }
+            let offset = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: today).day ?? -1
+            if offset >= 0 && offset < days { out[days - 1 - offset] += entry.costUSD }
+        }
+        return out
+    }
+
+    /// Sums cost per model across daily breakdowns, returns the highest-cost model name.
+    static func topModel(from breakdowns: [[String: Double]]) -> String? {
+        var totals: [String: Double] = [:]
+        for day in breakdowns {
+            for (name, cost) in day { totals[name, default: 0] += cost }
+        }
+        return totals.max { $0.value < $1.value }?.key
+    }
+
     private let port: UInt16
     private let session: URLSession
     private let timeout: TimeInterval
