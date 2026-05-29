@@ -10,11 +10,18 @@ public actor BridgeService {
     private let peripheral: GATTPeripheral
     private var snapshotCache = SnapshotCache()
     private var costCache = CostCache()
+    private let balanceClient: BalanceClient
+    private var balanceCache = BalanceCache()
+    private let providers: [ProviderConfig.Resolved]
+    private var lastPolled: [String: Date] = [:]
 
     public init(config: Config) async {
         self.config = config
         self.supervisor = CodexbarSupervisor(port: config.codexbarPort)
         self.client = CodexbarClient(port: config.codexbarPort)
+        let loadedProviders = (try? ProvidersConfig.load())?.map { $0.resolved() } ?? []
+        self.providers = loadedProviders
+        self.balanceClient = BalanceClient(keyStore: KeychainStore())
         // GATTPeripheral is @MainActor; constructing it from an async init hops to main.
         self.peripheral = await GATTPeripheral()
     }
@@ -34,6 +41,7 @@ public actor BridgeService {
         // watch is connected. Watch reads always see the latest cached frame
         // (codexbar serve takes 5-15 s per call, so we cannot fetch on demand).
         Task { await self.prewarmLoop() }
+        if !providers.isEmpty { Task { await self.balancePollLoop() } }
 
         // Block forever so launchd doesn't reap us; the prewarm loop and GATT
         // callbacks run on their own tasks. (A never-resumed continuation trips
@@ -57,6 +65,10 @@ public actor BridgeService {
     }
 
     fileprivate func handleRefresh(scope: UInt8) async {
+        if scope == Protocol.triggerScopeBalances {
+            await handleBalanceRefresh(force: true)
+            return
+        }
         if scope == Protocol.triggerScopeCost {
             await handleCostRefresh()
             return
@@ -100,6 +112,28 @@ public actor BridgeService {
             FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
             await peripheral.updateCostSnapshot(costCache.recordFailure())
         }
+    }
+
+    private func balancePollLoop() async {
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        while !Task.isCancelled {
+            await handleBalanceRefresh(force: false)
+            try? await Task.sleep(nanoseconds: 30_000_000_000)   // 30 s tick; per-provider cadence below
+        }
+    }
+
+    /// Polls providers whose `pollSeconds` has elapsed (or all, when `force`).
+    private func handleBalanceRefresh(force: Bool) async {
+        let now = Date()
+        let due = providers.filter { p in
+            force || (lastPolled[p.id].map { now.timeIntervalSince($0) >= Double(p.pollSeconds) } ?? true)
+        }
+        guard !due.isEmpty else { return }
+        let fresh = await balanceClient.fetchAll(due, now: now)
+        for p in due { lastPolled[p.id] = now }
+        let bytes = balanceCache.record(fresh)
+        await peripheral.updateBalanceSnapshot(bytes)
+        FileHandle.standardOutput.write(Data("balance poll: \(due.count) provider(s)\n".utf8))
     }
 }
 

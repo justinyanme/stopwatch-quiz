@@ -21,6 +21,7 @@ public final class GATTPeripheral: NSObject {
     private let snapshotChar: CBMutableCharacteristic
     private let triggerChar:  CBMutableCharacteristic
     private let costChar:     CBMutableCharacteristic
+    private let balanceChar:  CBMutableCharacteristic
     private let service:      CBMutableService
 
     /// Initialised to a well-formed v1.0 stale-empty snapshot so a watch reading
@@ -30,6 +31,8 @@ public final class GATTPeripheral: NSObject {
     private var pendingNotify: Data?     // last data that updateValue refused (queue full); resent on isReadyToUpdate
     private var currentCost: Data = CostEncoder.staleEmpty()
     private var pendingCostNotify: Data?
+    private var currentBalance: Data = BalanceEncoder.staleEmpty()
+    private var pendingBalanceNotify: Data?
     private var refreshTask: Task<Void, Never>?  // serializes trigger writes — newer cancels older
 
     public override init() {
@@ -51,8 +54,14 @@ public final class GATTPeripheral: NSObject {
             value: nil,
             permissions: [.readable]
         )
+        self.balanceChar = CBMutableCharacteristic(
+            type: Protocol.balanceSnapshotUUID,
+            properties: [.read, .notify],
+            value: nil,
+            permissions: [.readable]
+        )
         let svc = CBMutableService(type: Protocol.serviceUUID, primary: true)
-        svc.characteristics = [self.snapshotChar, self.triggerChar, self.costChar]
+        svc.characteristics = [self.snapshotChar, self.triggerChar, self.costChar, self.balanceChar]
         self.service = svc
 
         self.manager = CBPeripheralManager(delegate: nil, queue: nil)
@@ -78,6 +87,16 @@ public final class GATTPeripheral: NSObject {
             pendingCostNotify = data
         } else {
             pendingCostNotify = nil
+        }
+    }
+
+    public func updateBalanceSnapshot(_ data: Data) {
+        precondition(data.count >= Protocol.balanceHeaderSize, "balance snapshot too short")
+        currentBalance = data
+        if !manager.updateValue(data, for: balanceChar, onSubscribedCentrals: nil) {
+            pendingBalanceNotify = data
+        } else {
+            pendingBalanceNotify = nil
         }
     }
 }
@@ -170,7 +189,8 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         let source: Data
         switch request.characteristic.uuid {
         case Protocol.snapshotUUID:     source = currentSnapshot
-        case Protocol.costSnapshotUUID: source = currentCost
+        case Protocol.costSnapshotUUID:    source = currentCost
+        case Protocol.balanceSnapshotUUID: source = currentBalance
         default:
             peripheral.respond(to: request, withResult: .attributeNotFound)
             return
@@ -203,6 +223,10 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         if let pendingCost = pendingCostNotify,
            peripheral.updateValue(pendingCost, for: costChar, onSubscribedCentrals: nil) {
             pendingCostNotify = nil
+        }
+        if let pendingBalance = pendingBalanceNotify,
+           peripheral.updateValue(pendingBalance, for: balanceChar, onSubscribedCentrals: nil) {
+            pendingBalanceNotify = nil
         }
     }
 }
