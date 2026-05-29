@@ -55,4 +55,23 @@ import Testing
         // topModel all-zero
         #expect(bytes[30..<42].allSatisfy { $0 == 0 })
     }
+
+    @Test func costCacheKeepsLastGoodOnFailure() {
+        var cache = CostCache()
+        let good = cache.recordSuccess(.costFixtureTwo)
+        #expect(good[3] == 0)  // no flags
+
+        let failed = cache.recordFailure(capturedAt: Date(timeIntervalSince1970: 1_748_500_000))
+        // last-good record bytes preserved, stale+bridgeError set
+        #expect(Array(failed[Protocol.costHeaderSize...]) == Array(good[Protocol.costHeaderSize...]))
+        #expect((failed[3] & CostFlags.stale.rawValue) != 0)
+        #expect((failed[3] & CostFlags.bridgeError.rawValue) != 0)
+    }
+
+    @Test func costCacheErrorEmptyBeforeFirstSuccess() {
+        var cache = CostCache()
+        let failed = cache.recordFailure()
+        #expect(failed.count == Protocol.costHeaderSize)  // recordCount 0
+        #expect((failed[3] & CostFlags.bridgeError.rawValue) != 0)
+    }
 }
