@@ -133,7 +133,8 @@ public actor BridgeService {
         for p in due { lastPolled[p.id] = now }
         let bytes = balanceCache.record(fresh)
         await peripheral.updateBalanceSnapshot(bytes)
-        FileHandle.standardOutput.write(Data("balance poll: \(due.count) provider(s)\n".utf8))
+        let summary = fresh.providers.map { "\($0.name)=\($0.status)" }.joined(separator: " ")
+        FileHandle.standardOutput.write(Data("balance poll: \(summary)\n".utf8))
     }
 }
 

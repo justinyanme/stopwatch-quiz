@@ -60,6 +60,7 @@ public actor BalanceClient {
                                   usage: nil, currency: currency, updatedAt: now, isLow: false)
                 }
                 guard let rawBal = numberAt(attempt.balancePath, in: obj) else {
+                    FileHandle.standardError.write(Data("balance: \(p.name) HTTP 200 but balancePath '\(attempt.balancePath)' not numeric\n".utf8))
                     lastStatus = .unreachable; continue
                 }
                 // Raw values may be provider-internal units (e.g. AiHubMix quota, 500000 = $1);
@@ -109,9 +110,9 @@ public actor BalanceClient {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, resp) = try await session.data(for: req)
-            if let http = resp as? HTTPURLResponse {
+            if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
+                FileHandle.standardError.write(Data("balance fetch \(url.host ?? endpoint): HTTP \(http.statusCode)\n".utf8))
                 switch http.statusCode {
-                case 200: break
                 case 401, 403: return .failure(.authError)
                 case 402:      return .failure(.depleted)
                 default:       return .failure(.unreachable)
