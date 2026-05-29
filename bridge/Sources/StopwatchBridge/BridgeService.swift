@@ -9,6 +9,7 @@ public actor BridgeService {
     private let client: CodexbarClient
     private let peripheral: GATTPeripheral
     private var snapshotCache = SnapshotCache()
+    private var costCache = CostCache()
 
     public init(config: Config) async {
         self.config = config
@@ -52,6 +53,10 @@ public actor BridgeService {
     }
 
     fileprivate func handleRefresh(scope: UInt8) async {
+        if scope == Protocol.triggerScopeCost {
+            await handleCostRefresh()
+            return
+        }
         let s = CodexbarClient.Scope(rawByte: scope)
         let started = Date()
         do {
@@ -64,6 +69,19 @@ public actor BridgeService {
         } catch {
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             await peripheral.updateSnapshot(snapshotCache.recordFailure())
+        }
+        // Refresh cost on the same trigger so the watch's lazy CostSnapshot read is fresh.
+        await handleCostRefresh()
+    }
+
+    private func handleCostRefresh() async {
+        do {
+            let cost = try await client.fetchCost(scope: .all)
+            await peripheral.updateCostSnapshot(costCache.recordSuccess(cost))
+            FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
+            await peripheral.updateCostSnapshot(costCache.recordFailure())
         }
     }
 }
