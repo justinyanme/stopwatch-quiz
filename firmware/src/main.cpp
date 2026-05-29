@@ -37,14 +37,14 @@ static void drawCurrentView() {
     switch (g_app.currentView()) {
         case ViewId::Overview:   views::drawOverview(g_renderer, g_snap, link); break;
         case ViewId::TotalSpend: views::drawTotalSpend(g_renderer, g_cost, link); break;
-        case ViewId::Codex:      views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link, g_cost.find(ProviderID::Codex)); break;
+        case ViewId::Codex:      views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link); break;
         case ViewId::CodexCost:  views::drawProviderCost(g_renderer, g_cost, ProviderID::Codex, link); break;
-        case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link, g_cost.find(ProviderID::Claude)); break;
+        case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link); break;
         case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link); break;
-        case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link, nullptr); break;
+        case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link); break;
         case ViewId::Balances: {
             int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
-            g_balScroll.setBounds(contentH, theme::kRingOuterR);
+            g_balScroll.setBounds(contentH, views::balancesViewportHeight());
             break;
         }
     }

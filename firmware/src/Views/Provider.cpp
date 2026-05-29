@@ -3,7 +3,6 @@
 #include "../App.h"
 #include "../IconLookup.h"
 #include "../Theme.h"
-#include "Spend.h"
 #include <cstdio>
 #include <time.h>
 
@@ -64,8 +63,7 @@ Pill pillFor(LinkStatus link, const Snapshot &snap) {
 }
 }  // namespace
 
-void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkStatus link,
-                  const CostRecord *cost) {
+void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkStatus link) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
 
@@ -169,10 +167,6 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
             c.drawString(bottom, theme::kCenterX, by);
         }
     }
-
-    // Spend teaser: micro tier, tucked between the secondary strap and the pill
-    // (Codex/Claude only; no-op when there's no cost record).
-    drawSpendTeaser(c, cost, theme::kCenterY + 136);
 
     auto pill = pillFor(link, snap);
     renderer.drawPill(theme::kCenterX,

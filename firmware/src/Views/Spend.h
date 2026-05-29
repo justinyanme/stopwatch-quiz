@@ -9,7 +9,4 @@ namespace stopwatch::views {
 void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus link);
 void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID id, LinkStatus link);
 
-/// Teaser line ("today $X · NNNm") drawn by the provider ring screen. No-op if rec is null.
-void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY);
-
 }  // namespace stopwatch::views

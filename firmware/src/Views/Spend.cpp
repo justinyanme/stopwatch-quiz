@@ -214,42 +214,64 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
         c.setTextDatum(middle_center);
     }
 
-    if (r && r->todayCents) {
-        drawMoneyHero(c, r->todayCents.value(), theme::kCenterX, theme::kCenterY - 44, color);
+    // "waiting for Mac" is only honest when there's truly nothing yet. A record
+    // that merely lacks *today's* dollar cost — e.g. today's model isn't priced
+    // upstream, so codexbar returns a null session cost — still carries 30-day
+    // spend, token counts and history worth showing; don't collapse that into a
+    // bogus connection message.
+    bool anyData = r && (r->todayCents || r->monthCents || r->todayTokens || r->monthTokens);
+    if (!anyData) {
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
+        c.drawString("waiting for Mac", theme::kCenterX, theme::kCenterY);
+    } else {
+        // Hero: today's spend when priced. When it isn't, an honest em-dash plus a
+        // note — a missing dollar should read as "not priced", not "no spend" — and
+        // we still surface today's token activity so the screen isn't a dead end.
+        if (r->todayCents) {
+            drawMoneyHero(c, r->todayCents.value(), theme::kCenterX, theme::kCenterY - 44, color);
+            c.setFont(theme::kFontBody);
+            c.setTextColor(theme::kTextMuted);
+            c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
+        } else {
+            c.setFont(theme::kFontUnit);
+            c.setTextColor(theme::kTextMuted);
+            c.drawString("\xE2\x80\x94", theme::kCenterX, theme::kCenterY - 44);  // em dash
+            char sub[28];
+            if (r->todayTokens) {
+                char tk[16]; humanizeTokens(r->todayTokens.value(), tk, sizeof(tk));
+                snprintf(sub, sizeof(sub), "today \xC2\xB7 %s tok", tk);
+            } else {
+                snprintf(sub, sizeof(sub), "today \xC2\xB7 not priced");
+            }
+            c.setFont(theme::kFontBody);
+            c.setTextColor(theme::kTextMuted);
+            c.drawString(sub, theme::kCenterX, theme::kCenterY - 2);
+        }
 
-        char mo[16]; formatDollars(r->monthCents.value_or(0), mo, sizeof(mo), false);
-        char l1[24]; snprintf(l1, sizeof(l1), "30d   %s", mo);
-        drawDollarLine(c, l1, theme::kCenterX, theme::kCenterY + 30, theme::kFontBody, theme::kTextMuted);
-        char tok[16]; humanizeTokens(r->monthTokens.value_or(0), tok, sizeof(tok));
-        char l2[24]; snprintf(l2, sizeof(l2), "tok   %s", tok);
-        c.drawString(l2, theme::kCenterX, theme::kCenterY + 62);
+        // 30-day context + history: shown whenever present, not gated on today.
+        c.setTextDatum(middle_center);
+        if (r->monthCents) {
+            char mo[16]; formatDollars(r->monthCents.value(), mo, sizeof(mo), false);
+            char l1[24]; snprintf(l1, sizeof(l1), "30d   %s", mo);
+            drawDollarLine(c, l1, theme::kCenterX, theme::kCenterY + 30, theme::kFontBody, theme::kTextMuted);
+        }
+        if (r->monthTokens) {
+            char tk[16]; humanizeTokens(r->monthTokens.value(), tk, sizeof(tk));
+            char l2[24]; snprintf(l2, sizeof(l2), "tok   %s", tk);
+            c.setFont(theme::kFontBody);
+            c.setTextColor(theme::kTextMuted);
+            c.drawString(l2, theme::kCenterX, theme::kCenterY + 62);
+        }
 
         int hist[kCostHistoryDays]; int maxV = 1;
         for (int d = 0; d < kCostHistoryDays; ++d) { hist[d] = r->history[d]; if (hist[d] > maxV) maxV = hist[d]; }
         drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 88, 180, 36,
                       hist, kCostHistoryDays, maxV, color);
-    } else {
-        c.setFont(theme::kFontBody);
-        c.setTextColor(theme::kTextMuted);
-        c.drawString("waiting for Mac", theme::kCenterX, theme::kCenterY);
     }
 
     auto pill = pillFor(link, cost);
     renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill.label, pill.color);
-}
-
-void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY) {
-    if (!rec || !rec->todayCents) return;
-    char d[16]; formatDollars(rec->todayCents.value(), d, sizeof(d), true);
-    char tok[16]; humanizeTokens(rec->todayTokens.value_or(0), tok, sizeof(tok));
-    char line[40]; snprintf(line, sizeof(line), "today %s \xC2\xB7 %s", d, tok);
-    c.setTextDatum(middle_center);
-    c.setTextColor(theme::kTextMuted);
-    c.setFont(theme::kFontMicro);
-    c.drawString(line, theme::kCenterX, baselineY);
 }
 
 }  // namespace stopwatch::views
