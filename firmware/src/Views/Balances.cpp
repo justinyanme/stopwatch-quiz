@@ -30,12 +30,36 @@ const char *statusMarker(BalanceStatus s) {
     }
 }
 
-// "$42.10" / "¥318.50" / "—" / "∞" into buf.
-void formatBalance(const BalanceRecord &r, char *buf, size_t n) {
-    if (r.unlimited)            { snprintf(buf, n, "%s\xE2\x88\x9E", currencySymbol(r.currency)); return; }
-    if (!r.balanceMinor)        { snprintf(buf, n, "\xE2\x80\x94"); return; }  // —
-    char num[16]; formatBalanceMinor(r.balanceMinor.value(), r.decimals, num, sizeof(num));
-    snprintf(buf, n, "%s%s", currencySymbol(r.currency), num);
+// Digit string only (no symbol): "318.50" / "--" (unknown) / "∞" (unlimited).
+void balanceNumber(const BalanceRecord &r, char *buf, size_t n) {
+    if (r.unlimited)     { snprintf(buf, n, "\xE2\x88\x9E"); return; }
+    if (!r.balanceMinor) { snprintf(buf, n, "--"); return; }
+    formatBalanceMinor(r.balanceMinor.value(), r.decimals, buf, n);
+}
+
+// Draws the currency symbol with its right edge at rightX, vertically centered on y.
+// '$' is drawn from Font2 — Font4's 0x24 glyph is a '£' (see Theme.h). No bundled font
+// carries '¥', so it's built from the body-font 'Y' plus two horizontal bars. Any other
+// code renders as its ISO text. Returns the pixel width drawn.
+int drawCurrencyGlyph(M5Canvas &c, const char *code, int rightX, int y, uint32_t color) {
+    c.setTextColor(color);
+    c.setTextDatum(middle_right);
+    if (strcmp(code, "USD") == 0) {
+        c.setFont(theme::kFontDollar);
+        c.drawString("$", rightX, y);
+        return c.textWidth("$");
+    }
+    if (strcmp(code, "CNY") == 0 || strcmp(code, "JPY") == 0) {
+        c.setFont(theme::kFontTitle);
+        int w = c.textWidth("Y");
+        c.drawString("Y", rightX, y);
+        c.fillRect(rightX - w, y - 1, w, 2, color);
+        c.fillRect(rightX - w, y + 5, w, 2, color);
+        return w;
+    }
+    c.setFont(theme::kFontTitle);
+    c.drawString(code, rightX, y);
+    return c.textWidth(code);
 }
 }  // namespace
 
@@ -79,11 +103,14 @@ int drawBalances(Renderer &renderer, const BalanceSnapshot &bal, LinkStatus link
         c.setTextDatum(middle_left);
         c.drawString(r.name, leftX + 24, rowY);
 
-        char balStr[24]; formatBalance(r, balStr, sizeof(balStr));
+        char num[16]; balanceNumber(r, num, sizeof(num));
         uint32_t balColor = dim ? theme::kTextMuted : (r.low ? theme::kPillStale : color);
+        c.setFont(theme::kFontTitle);
         c.setTextColor(balColor);
         c.setTextDatum(middle_right);
-        c.drawString(balStr, 396, rowY);
+        c.drawString(num, 396, rowY);                          // digits right-aligned
+        int wNum = c.textWidth(num);
+        drawCurrencyGlyph(c, r.currency, 396 - wNum - 3, rowY, balColor);  // symbol to its left
 
         if (const char *m = statusMarker(r.status)) {
             c.setFont(theme::kFontMicro); c.setTextColor(theme::kTextMuted); c.setTextDatum(middle_left);
