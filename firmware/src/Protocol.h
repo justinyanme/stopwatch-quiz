@@ -23,4 +23,19 @@ constexpr uint8_t kFlagStale           = 0b00000001;
 constexpr uint8_t kFlagBridgeError     = 0b00000010;
 constexpr uint8_t kFlagProviderMissing = 0b00000100;
 
+constexpr const char *kCostSnapshotUUID = "33FAAC2D-3935-467F-A0A0-899CE2306366";
+
+constexpr uint8_t  kCostVersionMajor    = 1;
+constexpr uint8_t  kCostHeaderSize      = 12;
+constexpr uint8_t  kCostRecordSize      = 60;
+constexpr uint8_t  kCostHistoryDays     = 30;
+constexpr uint8_t  kCostMaxRecords      = 2;   // codex, claude
+constexpr uint16_t kCostSnapshotMaxSize = kCostHeaderSize + kCostRecordSize * kCostMaxRecords;  // 132
+
+constexpr uint8_t kCostFlagStale       = 0b00000001;
+constexpr uint8_t kCostFlagBridgeError = 0b00000010;
+constexpr uint8_t kCostFlagUnavailable = 0b00000100;
+
+constexpr uint8_t kTriggerScopeCost    = 0x04;
+
 }  // namespace stopwatch
