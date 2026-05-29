@@ -96,3 +96,24 @@ extension NormalizedUsage {
         )
     }
 }
+
+extension NormalizedCost {
+    /// Controlled round-number fixture for byte-exact encoder assertions.
+    /// max day = $120 (codex) ⇒ historyUnitCents = ceil(12000/255) = 48.
+    static var costFixtureTwo: NormalizedCost {
+        var codexHist = [Double](repeating: 0, count: 30); codexHist[29] = 120.0
+        var claudeHist = [Double](repeating: 0, count: 30); claudeHist[29] = 60.0
+        return .init(
+            capturedAt: Date(timeIntervalSince1970: 1748455822),
+            flags: [],
+            providers: [
+                .init(providerID: .codex,  todayCostUSD: 12.0, monthCostUSD: 300.0,
+                      todayTokens: 1_000_000, monthTokens: 100_000_000,
+                      topModel: "gpt-5.5", history: codexHist),
+                .init(providerID: .claude, todayCostUSD: 8.0,  monthCostUSD: 200.0,
+                      todayTokens: 2_000_000, monthTokens: 50_000_000,
+                      topModel: "claude-opus-4-7", history: claudeHist),
+            ]
+        )
+    }
+}
