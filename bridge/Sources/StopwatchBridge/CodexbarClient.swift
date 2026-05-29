@@ -220,7 +220,8 @@ public actor CodexbarClient {
         for day in breakdowns {
             for (name, cost) in day { totals[name, default: 0] += cost }
         }
-        return totals.max { $0.value < $1.value }?.key
+        // Deterministic: highest total cost, ties broken by model name (ascending).
+        return totals.sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }.first?.key
     }
 
     private let port: UInt16

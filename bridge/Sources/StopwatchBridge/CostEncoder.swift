@@ -42,11 +42,12 @@ public enum CostEncoder {
                               flags: [.stale, .bridgeError], providers: []))
     }
 
-    /// Sets stale+bridgeError flags and refreshes capturedAt on an already-encoded snapshot.
-    public static func markStale(_ snapshot: Data, capturedAt: Date) -> Data {
+    /// Sets the `stale` flag (plus any `extraFlags`) and refreshes capturedAt on an
+    /// already-encoded snapshot, preserving the existing record bytes.
+    public static func markStale(_ snapshot: Data, capturedAt: Date, extraFlags: CostFlags = []) -> Data {
         guard snapshot.count >= Protocol.costHeaderSize else { return snapshot }
         var out = snapshot
-        out[3] |= CostFlags.stale.rawValue | CostFlags.bridgeError.rawValue
+        out[3] |= CostFlags.stale.rawValue | extraFlags.rawValue
         writeU32(&out, UInt32(max(0, capturedAt.timeIntervalSince1970)), at: 4)
         return out
     }

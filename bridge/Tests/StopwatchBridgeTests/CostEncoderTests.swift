@@ -74,4 +74,31 @@ import Testing
         #expect(failed.count == Protocol.costHeaderSize)  // recordCount 0
         #expect((failed[3] & CostFlags.bridgeError.rawValue) != 0)
     }
+
+    @Test func sharedScaleDrivenByLargerProvider() {
+        var codexHist = [Double](repeating: 0, count: 30); codexHist[29] = 50.0    // $50
+        var claudeHist = [Double](repeating: 0, count: 30); claudeHist[29] = 255.0 // $255 (larger)
+        let cost = NormalizedCost(capturedAt: Date(timeIntervalSince1970: 0), flags: [], providers: [
+            .init(providerID: .codex,  todayCostUSD: 0, monthCostUSD: 0, todayTokens: 0, monthTokens: 0, topModel: nil, history: codexHist),
+            .init(providerID: .claude, todayCostUSD: 0, monthCostUSD: 0, todayTokens: 0, monthTokens: 0, topModel: nil, history: claudeHist),
+        ])
+        let bytes = CostEncoder.encode(cost)
+        // max day = $255 = 25500 cents ⇒ historyUnitCents = ceil(25500/255) = 100
+        #expect(bytes[10] == 100 && bytes[11] == 0)
+        #expect(bytes[71] == 50)    // codex history[29] (offset 12+30+29) = 5000/100
+        #expect(bytes[131] == 255)  // claude history[29] (offset 72+30+29) = 25500/100
+    }
+
+    @Test func costCacheEmptySuccessKeepsLastGoodWithCostUnavailable() {
+        var cache = CostCache()
+        let good = cache.recordSuccess(.costFixtureTwo)
+        let empty = NormalizedCost(capturedAt: Date(timeIntervalSince1970: 1_748_500_000),
+                                   flags: [.costUnavailable], providers: [])
+        let out = cache.recordSuccess(empty)
+        // last-known records preserved
+        #expect(Array(out[Protocol.costHeaderSize...]) == Array(good[Protocol.costHeaderSize...]))
+        #expect((out[3] & CostFlags.stale.rawValue) != 0)
+        #expect((out[3] & CostFlags.costUnavailable.rawValue) != 0)
+        #expect((out[3] & CostFlags.bridgeError.rawValue) == 0)   // NOT a bridge error
+    }
 }

@@ -70,8 +70,10 @@ public actor BridgeService {
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             await peripheral.updateSnapshot(snapshotCache.recordFailure())
         }
-        // Refresh cost on the same trigger so the watch's lazy CostSnapshot read is fresh.
-        await handleCostRefresh()
+        // Refresh cost only on a full (all-providers) refresh / prewarm; narrow per-provider
+        // usage triggers don't need a full /cost re-fetch (codexbar /cost is slow). Scope 0x04
+        // remains the explicit cost-only path (handled by the early return above).
+        if scope == 0 { await handleCostRefresh() }
     }
 
     private func handleCostRefresh() async {
