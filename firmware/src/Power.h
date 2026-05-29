@@ -13,7 +13,7 @@ public:
 
 private:
     uint32_t lastActivityMs_ = 0;
-    static constexpr uint32_t kIdleSleepMs = 15000;
+    static constexpr uint32_t kIdleSleepMs = 5 * 60 * 1000;  // 5 minutes
 };
 
 }  // namespace stopwatch
