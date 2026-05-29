@@ -111,7 +111,8 @@ public actor BalanceClient {
         do {
             let (data, resp) = try await session.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode != 200 {
-                FileHandle.standardError.write(Data("balance fetch \(url.host ?? endpoint): HTTP \(http.statusCode)\n".utf8))
+                let snippet = String(decoding: data.prefix(160), as: UTF8.self).replacingOccurrences(of: "\n", with: " ")
+                FileHandle.standardError.write(Data("balance fetch \(url.host ?? endpoint): HTTP \(http.statusCode) body=\(snippet)\n".utf8))
                 switch http.statusCode {
                 case 401, 403: return .failure(.authError)
                 case 402:      return .failure(.depleted)
