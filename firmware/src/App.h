@@ -10,7 +10,7 @@ enum class ViewId : uint8_t {
     Overview = 0, TotalSpend = 1,
     Codex = 2, CodexCost = 3,
     Claude = 4, ClaudeCost = 5,
-    Gemini = 6,
+    Gemini = 6, Balances = 7,
 };
 
 enum class LinkStatus : uint8_t {
@@ -48,20 +48,22 @@ inline constexpr ViewId nextView(ViewId v) {
         case ViewId::CodexCost:  return ViewId::Claude;
         case ViewId::Claude:     return ViewId::ClaudeCost;
         case ViewId::ClaudeCost: return ViewId::Gemini;
-        case ViewId::Gemini:     return ViewId::Overview;
+        case ViewId::Gemini:     return ViewId::Balances;
+        case ViewId::Balances:   return ViewId::Overview;
     }
     return ViewId::Overview;
 }
 
 inline constexpr ViewId prevView(ViewId v) {
     switch (v) {
-        case ViewId::Overview:   return ViewId::Gemini;
+        case ViewId::Overview:   return ViewId::Balances;
         case ViewId::TotalSpend: return ViewId::Overview;
         case ViewId::Codex:      return ViewId::TotalSpend;
         case ViewId::CodexCost:  return ViewId::Codex;
         case ViewId::Claude:     return ViewId::CodexCost;
         case ViewId::ClaudeCost: return ViewId::Claude;
         case ViewId::Gemini:     return ViewId::ClaudeCost;
+        case ViewId::Balances:   return ViewId::Gemini;
     }
     return ViewId::Overview;
 }
@@ -69,5 +71,7 @@ inline constexpr ViewId prevView(ViewId v) {
 constexpr bool isSpendView(ViewId v) {
     return v == ViewId::TotalSpend || v == ViewId::CodexCost || v == ViewId::ClaudeCost;
 }
+
+constexpr bool isBalanceView(ViewId v) { return v == ViewId::Balances; }
 
 }  // namespace stopwatch
