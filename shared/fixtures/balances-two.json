@@ -1,0 +1,6 @@
+[
+  { "kind": "openrouter", "name": "OpenRouter", "currency": "USD",
+    "remaining": 42.10, "usage": 7.90, "updatedAt": 1748455822 },
+  { "kind": "deepseek", "name": "DeepSeek", "currency": "CNY",
+    "remaining": 318.50, "updatedAt": 1748455822 }
+]

@@ -57,6 +57,22 @@ import Testing
         #expect(data.count == 8 + 36 * 16)
     }
 
+    // Golden cross-side fixture. Run once with FREEZE_FIXTURES=1 to (re)write the
+    // .hex from the encoder; thereafter (and in CI) it asserts the bytes are stable.
+    @Test func goldenHexMatches() throws {
+        let data = BalanceEncoder.encode(.balanceFixtureTwo)
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("shared/fixtures/balances-two.hex")
+        if ProcessInfo.processInfo.environment["FREEZE_FIXTURES"] != nil {
+            let hex = data.map { String(format: "%02x", $0) }.joined()
+            try (hex + "\n").write(to: url, atomically: true, encoding: .utf8)
+        }
+        let expected = try Fixtures.loadHex("balances-two")
+        #expect(data == expected)
+    }
+
     private func le32(_ b: [UInt8], _ o: Int) -> UInt32 {
         UInt32(b[o]) | UInt32(b[o+1]) << 8 | UInt32(b[o+2]) << 16 | UInt32(b[o+3]) << 24
     }
