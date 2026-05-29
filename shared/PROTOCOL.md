@@ -16,6 +16,7 @@ Authoritative source for the BLE GATT service and binary payload shared between 
 |---|---|---|---|---|
 | `UsageSnapshot` | `621645B4-14D2-4E58-975B-73B81D43916D` | Read + Notify | bridge → watch | Latest binary snapshot. Watch reads on wake; bridge notifies on snapshot change while watch is connected. |
 | `RefreshTrigger` | `6817329E-A603-4A34-BB4D-04215218304C` | Write Without Response | watch → bridge | Watch writes 1 byte (provider scope) to ask for a fresh fetch. |
+| `CostSnapshot` | `33FAAC2D-3935-467F-A0A0-899CE2306366` | Read + Notify | bridge → watch | Spend/burn data. Watch reads lazily on entering a spend screen; bridge notifies on change. Versioned independently of `UsageSnapshot`. |
 
 ### 2.1 `RefreshTrigger` payload
 
@@ -27,6 +28,7 @@ Single byte:
 | `0x01` | Codex only |
 | `0x02` | Claude Code only |
 | `0x03` | Gemini only |
+| `0x04` | Cost only (re-fetch `/cost` for all providers) |
 
 Any other value → bridge logs warning and treats as `0x00`.
 
@@ -73,6 +75,38 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
   - Additional providers (signalled by `providerCount` exceeding what the watch knows; the watch decodes only the providers whose `providerID` it recognizes).
 
 - **The per-provider record's stride is fixed per `versionMajor`.** Adding or reordering per-provider fields therefore requires a major bump, never a minor bump.
+
+## 3A. `CostSnapshot` payload (binary)
+
+Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All integers little-endian. Size = `12 + 60 × recordCount`. Codex + Claude ⇒ **132 bytes**. Gemini has no `/cost` data and is omitted.
+
+### 3A.1 Header (12 bytes)
+
+| Offset | Type | Field | Meaning |
+|---|---|---|---|
+| 0 | uint8 | `versionMajor` | `0x01`. |
+| 1 | uint8 | `versionMinor` | `0x00`. |
+| 2 | uint8 | `recordCount` | Number of cost records (0–2 today). |
+| 3 | uint8 | `flags` | bit0 stale, bit1 bridge_error, bit2 cost_unavailable. |
+| 4 | uint32 | `capturedAt` | Unix seconds. |
+| 8 | uint8 | `historyDays` | `30`. |
+| 9 | uint8 | `reserved` | `0`. |
+| 10 | uint16 | `historyUnitCents` | Shared scale: cents per history unit (≥1). |
+
+### 3A.2 Per-record (60 bytes, repeated `recordCount` times)
+
+| Offset | Type | Field | Meaning |
+|---|---|---|---|
+| 0 | uint8 | `providerID` | 1 = codex, 2 = claude. |
+| 1 | uint8 | `reserved` | `0`. |
+| 2 | uint32 | `todayCostCents` | `0xFFFFFFFF` = unknown. |
+| 6 | uint32 | `monthCostCents` | `0xFFFFFFFF` = unknown. |
+| 10 | uint32 | `todayTokens` | `0xFFFFFFFF` = unknown. |
+| 14 | uint32 | `monthTokens` | `0xFFFFFFFF` = unknown. |
+| 18 | char[12] | `topModel` | UTF-8, null-padded, vendor-prefix-stripped. |
+| 30 | uint8[30] | `history` | Oldest→newest; index 29 = `capturedAt` day; `round(dayCents / historyUnitCents)`. |
+
+History is normalized on one shared scale so the watch can sum providers for the combined burn chart.
 
 ## 4. Test fixtures
 
