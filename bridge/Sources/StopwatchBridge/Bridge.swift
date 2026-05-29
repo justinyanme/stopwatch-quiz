@@ -12,6 +12,13 @@ struct StopwatchBridge {
         case "decode-snapshot":
             guard args.count >= 2 else { usage(); exit(2) }
             exit(DecodeCommand.run(args[1]))
+        case "set-key":
+            guard args.count >= 2 else { usage(); exit(2) }
+            exit(KeyCommand.setKey(args[1]))
+        case "list-keys":   exit(KeyCommand.listKeys())
+        case "delete-key":
+            guard args.count >= 2 else { usage(); exit(2) }
+            exit(KeyCommand.deleteKey(args[1]))
         case "version":           print("stopwatch-bridge 0.1.0")
         default: usage(); exit(2)
         }
@@ -24,6 +31,9 @@ struct StopwatchBridge {
           install                   Install as launchd agent
           pair                      Foreground with verbose logging
           decode-snapshot <hex>     Print a captured snapshot as JSON
+          set-key <id>              Store a provider API key in the Keychain (reads stdin)
+          list-keys                 List provider ids with stored keys
+          delete-key <id>           Remove a stored provider key
           version                   Print version
         """)
     }
