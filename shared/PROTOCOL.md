@@ -17,6 +17,7 @@ Authoritative source for the BLE GATT service and binary payload shared between 
 | `UsageSnapshot` | `621645B4-14D2-4E58-975B-73B81D43916D` | Read + Notify | bridge → watch | Latest binary snapshot. Watch reads on wake; bridge notifies on snapshot change while watch is connected. |
 | `RefreshTrigger` | `6817329E-A603-4A34-BB4D-04215218304C` | Write Without Response | watch → bridge | Watch writes 1 byte (provider scope) to ask for a fresh fetch. |
 | `CostSnapshot` | `33FAAC2D-3935-467F-A0A0-899CE2306366` | Read + Notify | bridge → watch | Spend/burn data. Watch reads lazily on entering a spend screen; bridge notifies on change. Versioned independently of `UsageSnapshot`. |
+| `BalanceSnapshot` | `4D9E8F21-7C3A-4B6D-8E15-9A2F6C3B0D74` | Read + Notify | bridge → watch | API credit balances. Watch reads lazily on entering the Balances view; bridge notifies on change. Versioned independently. Read via ATT read-blob (may exceed one MTU). |
 
 ### 2.1 `RefreshTrigger` payload
 
@@ -29,6 +30,7 @@ Single byte:
 | `0x02` | Claude Code only |
 | `0x03` | Gemini only |
 | `0x04` | Cost only (re-fetch `/cost` for all providers) |
+| `0x05` | Balances only (poll all configured API-balance providers) |
 
 Any other value → bridge logs warning and treats as `0x00`.
 
@@ -107,6 +109,37 @@ Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All inte
 | 30 | uint8[30] | `history` | Oldest→newest; index 29 = `capturedAt` day; `round(dayCents / historyUnitCents)`. |
 
 History is normalized on one shared scale so the watch can sum providers for the combined burn chart.
+
+## 3B. `BalanceSnapshot` payload (binary)
+
+Independent of the other characteristics; its own `(versionMajor, versionMinor)`. All integers little-endian. Size = `8 + 36 × recordCount`.
+
+### 3B.1 Header (8 bytes)
+
+| Offset | Type | Field | Meaning |
+|---|---|---|---|
+| 0 | uint8 | `versionMajor` | `0x01`. |
+| 1 | uint8 | `versionMinor` | `0x00`. |
+| 2 | uint8 | `recordCount` | 0–16. |
+| 3 | uint8 | `flags` | bit0 stale, bit1 bridge_error. |
+| 4 | uint32 | `capturedAt` | Unix seconds the snapshot was assembled. |
+
+### 3B.2 Per record (36 bytes, repeated `recordCount` times)
+
+| Offset | Type | Field | Meaning |
+|---|---|---|---|
+| 0 | uint8 | `kind` | 0 generic, 1 openrouter, 2 deepseek, 3 groq, 4 together, 5 fireworks, 6 siliconflow, 7 moonshot, 8 zhipu. Unknown → generic. |
+| 1 | uint8 | `status` | 0 ok, 1 stale, 2 auth_error, 3 unreachable, 4 depleted. Unknown → ok. |
+| 2 | uint8 | `recordFlags` | bit0 = low_balance; other bits reserved (bridge writes 0, watch ignores). |
+| 3 | char[3] | `currencyCode` | ASCII e.g. `USD`,`CNY`. All-zero = unknown. |
+| 6 | uint8 | `currencyDecimals` | Minor-unit exponent (2 for USD/CNY). |
+| 7 | uint8 | `reserved` | `0`. |
+| 8 | uint32 | `balanceMinor` | remaining × 10^decimals. `0xFFFFFFFF`=unknown, `0xFFFFFFFE`=unlimited. |
+| 12 | uint32 | `usageMinor` | spent × 10^decimals, or `0xFFFFFFFF`. |
+| 16 | uint32 | `updatedAt` | Unix seconds of this provider's last OK poll; `0`=never. |
+| 20 | char[16] | `name` | UTF-8, null-padded display label. |
+
+Versioning follows the same major/minor rules as §3.3.
 
 ## 4. Test fixtures
 

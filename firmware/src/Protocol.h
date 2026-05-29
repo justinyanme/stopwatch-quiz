@@ -38,4 +38,24 @@ constexpr uint8_t kCostFlagUnavailable = 0b00000100;
 
 constexpr uint8_t kTriggerScopeCost    = 0x04;
 
+constexpr const char *kBalanceSnapshotUUID = "4D9E8F21-7C3A-4B6D-8E15-9A2F6C3B0D74";
+
+constexpr uint8_t  kBalanceVersionMajor = 1;
+constexpr uint8_t  kBalanceHeaderSize   = 8;
+constexpr uint8_t  kBalanceRecordSize   = 36;
+constexpr uint8_t  kBalanceMaxRecords   = 16;
+constexpr uint16_t kBalanceSnapshotMaxSize = kBalanceHeaderSize + kBalanceRecordSize * kBalanceMaxRecords;  // 584
+
+constexpr uint8_t kBalanceFlagStale       = 0b00000001;
+constexpr uint8_t kBalanceFlagBridgeError = 0b00000010;
+constexpr uint8_t kBalanceRecordFlagLow   = 0b00000001;
+
+constexpr uint8_t kTriggerScopeBalances = 0x05;
+
+enum class BalanceKind : uint8_t {
+    Generic = 0, OpenRouter = 1, DeepSeek = 2, Groq = 3, Together = 4,
+    Fireworks = 5, SiliconFlow = 6, Moonshot = 7, Zhipu = 8
+};
+enum class BalanceStatus : uint8_t { Ok = 0, Stale = 1, AuthError = 2, Unreachable = 3, Depleted = 4 };
+
 }  // namespace stopwatch

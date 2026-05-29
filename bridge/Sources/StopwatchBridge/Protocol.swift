@@ -24,6 +24,14 @@ public enum Protocol {
     public static let costRecordSize    = 60
     public static let costHistoryDays   = 30
     public static let triggerScopeCost: UInt8 = 0x04
+
+    public static let balanceSnapshotUUID = CBUUID(string: "4D9E8F21-7C3A-4B6D-8E15-9A2F6C3B0D74")
+    public static let balanceVersionMajor: UInt8 = 1
+    public static let balanceVersionMinor: UInt8 = 0
+    public static let balanceHeaderSize  = 8
+    public static let balanceRecordSize  = 36
+    public static let balanceMaxRecords  = 16
+    public static let triggerScopeBalances: UInt8 = 0x05
 }
 
 public struct SnapshotFlags: OptionSet, Sendable {
@@ -58,6 +66,73 @@ public enum ProviderPlan: UInt8, Sendable {
         case "enterprise": self = .enterprise
         default:           self = .unknown
         }
+    }
+}
+
+public struct BalanceFlags: OptionSet, Sendable {
+    public let rawValue: UInt8
+    public init(rawValue: UInt8) { self.rawValue = rawValue }
+
+    public static let stale       = BalanceFlags(rawValue: 0b0000_0001)
+    public static let bridgeError = BalanceFlags(rawValue: 0b0000_0010)
+}
+
+public enum BalanceKind: UInt8, Sendable {
+    case generic = 0, openrouter = 1, deepseek = 2, groq = 3, together = 4
+    case fireworks = 5, siliconflow = 6, moonshot = 7, zhipu = 8
+
+    public init(fromString s: String?) {
+        switch (s ?? "").lowercased() {
+        case "openrouter":  self = .openrouter
+        case "deepseek":    self = .deepseek
+        case "groq":        self = .groq
+        case "together":    self = .together
+        case "fireworks":   self = .fireworks
+        case "siliconflow": self = .siliconflow
+        case "moonshot":    self = .moonshot
+        case "zhipu":       self = .zhipu
+        default:            self = .generic
+        }
+    }
+}
+
+/// Per-record status. `stale` here is record-level (this provider's data is from
+/// a prior poll cycle) — distinct from `BalanceFlags.stale`, which marks the
+/// whole snapshot stale.
+public enum BalanceStatus: UInt8, Sendable {
+    case ok = 0, stale = 1, authError = 2, unreachable = 3, depleted = 4
+}
+
+/// Normalized balance input that `BalanceEncoder` consumes.
+public struct NormalizedBalance: Equatable, Sendable {
+    public struct Provider: Equatable, Sendable {
+        public var kind: BalanceKind
+        public var name: String
+        public var status: BalanceStatus
+        public var currencyCode: String      // 1–3 ASCII chars; "" = unknown
+        public var currencyDecimals: Int     // default 2
+        public var remaining: Double?        // nil → 0xFFFFFFFF (unknown)
+        public var unlimited: Bool           // true → 0xFFFFFFFE
+        public var usage: Double?            // nil → 0xFFFFFFFF
+        public var updatedAt: Date?          // nil → 0
+        public var isLow: Bool               // → recordFlags bit0
+
+        public init(kind: BalanceKind, name: String, status: BalanceStatus,
+                    currencyCode: String, currencyDecimals: Int = 2,
+                    remaining: Double?, unlimited: Bool = false, usage: Double? = nil,
+                    updatedAt: Date?, isLow: Bool = false) {
+            self.kind = kind; self.name = name; self.status = status
+            self.currencyCode = currencyCode; self.currencyDecimals = currencyDecimals
+            self.remaining = remaining; self.unlimited = unlimited; self.usage = usage
+            self.updatedAt = updatedAt; self.isLow = isLow
+        }
+    }
+    public var capturedAt: Date
+    public var flags: BalanceFlags
+    public var providers: [Provider]
+
+    public init(capturedAt: Date, flags: BalanceFlags, providers: [Provider]) {
+        self.capturedAt = capturedAt; self.flags = flags; self.providers = providers
     }
 }
 
