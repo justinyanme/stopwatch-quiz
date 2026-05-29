@@ -42,6 +42,9 @@ public actor BridgeService {
         // Give codexbar serve a moment to come up before the first fetch.
         try? await Task.sleep(nanoseconds: 3_000_000_000)
         while !Task.isCancelled {
+            // Re-arm advertising first: a system sleep can silently kill it without
+            // any CoreBluetooth callback, leaving the watch unable to find us.
+            await peripheral.ensureAdvertising()
             await handleRefresh(scope: 0)
             // Refresh every 60s in the background.
             try? await Task.sleep(nanoseconds: 60_000_000_000)

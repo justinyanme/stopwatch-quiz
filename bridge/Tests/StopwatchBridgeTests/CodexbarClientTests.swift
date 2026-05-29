@@ -21,6 +21,28 @@ import Testing
         #expect(usage.providers[2].weekResetAt == nil)
     }
 
+    @Test func decodesFractionalUsedPercent() async throws {
+        // Regression: real `codexbar serve` returns percentages as fractional
+        // Doubles (Gemini e.g. 54.666664999999995). A strict Int decode throws,
+        // failing the WHOLE array, so every live fetch was treated as a bridge
+        // failure and the watch was stuck showing "stale". usedPercent must decode
+        // as a number and round to the nearest whole percent.
+        let body = Data("""
+        [{"provider":"gemini","usage":{\
+        "primary":{"usedPercent":54.666664999999995},\
+        "secondary":{"usedPercent":12.4}}}]
+        """.utf8)
+        StubURLProtocol.stub = .init(status: 200, body: body)
+
+        let client = CodexbarClient(port: 51111, session: stubSession())
+        let usage = try await client.fetch(scope: .all)
+
+        #expect(usage.providers.count == 1)
+        #expect(usage.providers[0].providerID == .gemini)
+        #expect(usage.providers[0].sessionPct == 55)   // 54.666… rounds to 55
+        #expect(usage.providers[0].weekPct == 12)       // 12.4 rounds to 12
+    }
+
     @Test func timeoutSurfacesAsError() async {
         StubURLProtocol.stub = .init(error: URLError(.timedOut))
         let client = CodexbarClient(port: 51111, session: stubSession(), timeout: 1)

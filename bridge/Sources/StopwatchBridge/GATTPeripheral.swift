@@ -116,6 +116,22 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         }
     }
 
+    /// Periodic backstop, driven by `BridgeService`'s prewarm loop. CoreBluetooth
+    /// silently pauses a foreground/CLI process's advertising across a system
+    /// sleep and does NOT re-fire `peripheralManagerDidUpdateState` on wake
+    /// (Bluetooth stays `.poweredOn`), so `handleStateChange` never re-arms and
+    /// the watch starts seeing "no bridge". Worse, our own `isAdvertising` flag
+    /// stays `true` because no callback fired — so we must poll the *real*
+    /// `CBPeripheralManager.isAdvertising` and rebuild the service if it dropped.
+    func ensureAdvertising() {
+        guard manager.state == .poweredOn else { return }
+        guard !manager.isAdvertising else { return }
+        FileHandle.standardOutput.write(Data("advertising stopped (post-sleep?); re-arming GATT service\n".utf8))
+        isAdvertising = false
+        manager.removeAllServices()   // didAdd(_:error:) re-fires startAdvertising
+        manager.add(service)
+    }
+
     private func handleDidAdd(peripheral: CBPeripheralManager, error: Error?) {
         if let error = error {
             FileHandle.standardError.write(

@@ -80,8 +80,8 @@ public actor CodexbarClient {
             return .init(
                 providerID:     id,
                 status:         ProviderStatus(fromIndicator: p.status?.indicator),
-                sessionPct:     p.usage?.primary?.usedPercent.map { UInt8(max(0, min($0, 100))) },
-                weekPct:        p.usage?.secondary?.usedPercent.map { UInt8(max(0, min($0, 100))) },
+                sessionPct:     p.usage?.primary?.usedPercent.map { UInt8(max(0, min($0.rounded(), 100))) },
+                weekPct:        p.usage?.secondary?.usedPercent.map { UInt8(max(0, min($0.rounded(), 100))) },
                 sessionResetAt: p.usage?.primary?.resetsAt,
                 weekResetAt:    p.usage?.secondary?.resetsAt,
                 credits:        p.credits?.remaining,
@@ -112,7 +112,10 @@ public actor CodexbarClient {
             struct Usage: Decodable {
                 var primary: Window?
                 var secondary: Window?
-                struct Window: Decodable { var usedPercent: Int?; var resetsAt: Date? }
+                // `usedPercent` is a Double on the wire: codexbar reports fractional
+            // percentages (Gemini e.g. 54.666664999999995). Decoding as Int throws
+            // and fails the entire array — see `decodesFractionalUsedPercent` test.
+            struct Window: Decodable { var usedPercent: Double?; var resetsAt: Date? }
             }
             struct Credits: Decodable { var remaining: Double? }
         }
