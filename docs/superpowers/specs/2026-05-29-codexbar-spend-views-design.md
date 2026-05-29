@@ -1,6 +1,6 @@
 # CodexBar StopWatch — Spend & Burn Views — Design
 
-**Status:** Proposed
+**Status:** Approved
 **Date:** 2026-05-29
 **Owner:** Justin Yan
 **Builds on:** `docs/superpowers/specs/2026-05-28-codexbar-stopwatch-design.md`
@@ -223,7 +223,8 @@ Pick the model with the highest summed cost across `daily[].modelBreakdowns`. Th
 | `CostEncoder.swift` (new) | `NormalizedCost → Data` per §6: dense-fill history, compute shared `historyUnitCents`, shorten model, emit fixed-size records. |
 | `GATTPeripheral.swift` | Add the `CostSnapshot` characteristic (Read + Notify); serve latest cost bytes; init value = empty header with `cost_unavailable`+`stale`. |
 | `BridgeService.swift` | On refresh: fetch `/usage` → update `UsageSnapshot` + notify (fast ring path), **then** fetch `/cost` → update `CostSnapshot` + notify (background; rings never wait). Handle `0x04` scope = cost-only. |
-| `Config.swift` | Add `enableCost: Bool` (default `true`) to allow disabling cost fetching. |
+
+(No `Config` change: cost fetch is always on. A disable toggle was considered but dropped — adding a field to the `Codable` `Config` would break decoding existing `config.json`, and the lazy watch-side read already keeps the glance fast.)
 
 `CodexbarSupervisor` unaffected (same `codexbar serve` child already serves `/cost`).
 
@@ -250,7 +251,7 @@ Pick the model with the highest summed cost across `daily[].modelBreakdowns`. Th
 | `/cost` slow / times out | keep prior cost bytes, set `stale`, bump `capturedAt` | `● stale` pill on spend screens |
 | Provider absent from `/cost` (e.g. Gemini) | record simply omitted | No `$` screen for it (not in cycle); no teaser |
 | Cost not yet fetched on this wake | n/a | Cached (NVS) values + `● stale`, or `— waiting for Mac` if no cache |
-| `CostSnapshot.versionMajor` too new | n/a | Spend screens show `update firmware`; rings unaffected |
+| `CostSnapshot.versionMajor` too new | n/a | Cost decode rejected; spend screens keep last-known/empty + `● stale`; rings unaffected |
 | Unknown numeric field (`0xFFFFFFFF`) | written when source null | rendered as `—` |
 
 The rings path keeps its existing pills (`no bridge`, `link error`, `stale`, `no source`) unchanged.
