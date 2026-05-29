@@ -35,8 +35,12 @@ public actor BridgeService {
         // (codexbar serve takes 5-15 s per call, so we cannot fetch on demand).
         Task { await self.prewarmLoop() }
 
-        // Block forever so launchd doesn't reap us.
-        await withCheckedContinuation { (_: CheckedContinuation<Void, Never>) in }
+        // Block forever so launchd doesn't reap us; the prewarm loop and GATT
+        // callbacks run on their own tasks. (A never-resumed continuation trips
+        // Swift's "continuation leaked" runtime warning, so sleep in a loop instead.)
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 3_600_000_000_000)  // 1 hour
+        }
     }
 
     private func prewarmLoop() async {
