@@ -156,7 +156,7 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
     renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill.label, pill.color);
 }
 
-void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY, uint32_t color) {
+void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY) {
     if (!rec || !rec->todayCents) return;
     char d[16]; formatDollars(rec->todayCents.value(), d, sizeof(d), true);
     char tok[16]; humanizeTokens(rec->todayTokens.value_or(0), tok, sizeof(tok));
@@ -165,7 +165,6 @@ void drawSpendTeaser(M5Canvas &c, const CostRecord *rec, int baselineY, uint32_t
     c.setTextColor(theme::kTextMuted);
     c.setFont(&fonts::Font2);
     c.drawString(line, theme::kCenterX, baselineY);
-    (void)color;
 }
 
 }  // namespace stopwatch::views

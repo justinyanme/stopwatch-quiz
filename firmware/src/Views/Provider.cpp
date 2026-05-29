@@ -168,8 +168,8 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
         }
     }
 
-    // Spend teaser between the bottom strap and the pill (Codex/Claude only).
-    drawSpendTeaser(c, cost, theme::kCenterY + theme::kRingOuterR - 48, color);
+    // Spend teaser sits above the bottom strap (Codex/Claude only).
+    drawSpendTeaser(c, cost, theme::kCenterY + theme::kRingOuterR - 64);
 
     auto pill = pillFor(link, snap);
     renderer.drawPill(theme::kCenterX,

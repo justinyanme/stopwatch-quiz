@@ -40,8 +40,32 @@ private:
     LinkStatus link_ = LinkStatus::NoBridge;
 };
 
-constexpr ViewId nextView(ViewId v);
-constexpr ViewId prevView(ViewId v);
+inline constexpr ViewId nextView(ViewId v) {
+    switch (v) {
+        case ViewId::Overview:   return ViewId::TotalSpend;
+        case ViewId::TotalSpend: return ViewId::Codex;
+        case ViewId::Codex:      return ViewId::CodexCost;
+        case ViewId::CodexCost:  return ViewId::Claude;
+        case ViewId::Claude:     return ViewId::ClaudeCost;
+        case ViewId::ClaudeCost: return ViewId::Gemini;
+        case ViewId::Gemini:     return ViewId::Overview;
+    }
+    return ViewId::Overview;
+}
+
+inline constexpr ViewId prevView(ViewId v) {
+    switch (v) {
+        case ViewId::Overview:   return ViewId::Gemini;
+        case ViewId::TotalSpend: return ViewId::Overview;
+        case ViewId::Codex:      return ViewId::TotalSpend;
+        case ViewId::CodexCost:  return ViewId::Codex;
+        case ViewId::Claude:     return ViewId::CodexCost;
+        case ViewId::ClaudeCost: return ViewId::Claude;
+        case ViewId::Gemini:     return ViewId::ClaudeCost;
+    }
+    return ViewId::Overview;
+}
+
 constexpr bool isSpendView(ViewId v) {
     return v == ViewId::TotalSpend || v == ViewId::CodexCost || v == ViewId::ClaudeCost;
 }
