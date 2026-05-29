@@ -95,6 +95,32 @@ void drawDollarLine(M5Canvas &c, const char *s, int cx, int y,
     c.setFont(numFont);            c.drawString(after, x, y);
     c.setTextDatum(middle_center);
 }
+
+const char *displayName(ProviderID id) {
+    switch (id) {
+        case ProviderID::Codex:  return "Codex";
+        case ProviderID::Claude: return "Claude";
+        case ProviderID::Gemini: return "Gemini";
+    }
+    return "?";
+}
+
+// Right-aligned money: "$21.90" with its right edge at rightX; '$' from Font2
+// (Font4's 0x24 is a '£'), digits in numFont. Pairs with a left-aligned label
+// to make a scannable ledger row.
+void drawMoneyRight(M5Canvas &c, uint32_t cents, int rightX, int y,
+                    const lgfx::RLEfont *numFont, uint32_t color) {
+    char money[16]; formatDollars(cents, money, sizeof(money), true);
+    const char *digits = (money[0] == '$') ? money + 1 : money;
+    c.setFont(theme::kFontDollar); int wSign = c.textWidth("$");
+    c.setFont(numFont);            int wNum  = c.textWidth(digits);
+    int x = rightX - wSign - wNum;
+    c.setTextColor(color);
+    c.setTextDatum(middle_left);
+    c.setFont(theme::kFontDollar); c.drawString("$", x, y);
+    c.setFont(numFont);            c.drawString(digits, x + wSign, y);
+    c.setTextDatum(middle_center);
+}
 }  // namespace
 
 void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus link) {
@@ -105,7 +131,7 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     // Title
     c.setFont(theme::kFontTitle);
     c.setTextColor(theme::kTextMuted);
-    c.drawString("SPEND & BURN", theme::kCenterX, theme::kCenterY - 100);
+    c.drawString("SPEND & BURN", theme::kCenterX, 52);
 
     // Aggregate today's cents + 30d cents + 30d tokens; build combined history.
     uint32_t todayCents = 0, monthCents = 0, monthTokens = 0;
@@ -124,31 +150,37 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     }
 
     if (any) {
-        drawMoneyHero(c, todayCents, theme::kCenterX, theme::kCenterY - 44, theme::kTextPrimary);
+        // Hero: combined spend today — the one number you glance for.
+        drawMoneyHero(c, todayCents, theme::kCenterX, 118, theme::kTextPrimary);
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("today", theme::kCenterX, theme::kCenterY);
+        c.drawString("today", theme::kCenterX, 154);
 
-        char tok[16]; humanizeTokens(monthTokens, tok, sizeof(tok));
-        char mo[16];  formatDollars(monthCents, mo, sizeof(mo), false);
-        char line[40]; snprintf(line, sizeof(line), "30d %s \xC2\xB7 %s", mo, tok);
-        drawDollarLine(c, line, theme::kCenterX, theme::kCenterY + 32, theme::kFontBody, theme::kTextMuted);
-
-        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 56, 180, 40,
-                      combined, kCostHistoryDays, maxCombined, theme::kTextPrimary);
-
-        // Per-provider split line — the densest row on the face, held at the micro
-        // tier so all three providers fit across the disc.
-        c.setFont(theme::kFontMicro);
-        char split[48] = {0};
+        // Per-provider breakdown: readable ledger rows, each in its provider's color.
+        // (Replaces the old micro-font split line — the part that was hard to read.)
+        constexpr int kDotX = 132, kNameX = 152, kAmtRightX = 334;
+        int rowY = 200;
         for (uint8_t i = 0; i < cost.recordCount; ++i) {
             const CostRecord &r = cost.records[i];
-            char one[24]; char d[16];
-            formatDollars(r.todayCents.value_or(0), d, sizeof(d), true);
-            snprintf(one, sizeof(one), "%s%.2s %s", (i ? " \xC2\xB7 " : ""), labelFor(r.id), d);
-            strncat(split, one, sizeof(split) - strlen(split) - 1);
+            uint32_t pc = theme::colorFor(r.id);
+            c.fillCircle(kDotX, rowY, 6, pc);
+            c.setFont(theme::kFontBody);
+            c.setTextColor(theme::kTextPrimary);
+            c.setTextDatum(middle_left);
+            c.drawString(displayName(r.id), kNameX, rowY);
+            c.setTextDatum(middle_center);
+            drawMoneyRight(c, r.todayCents.value_or(0), kAmtRightX, rowY, theme::kFontBody, pc);
+            rowY += 40;
         }
-        c.drawString(split, theme::kCenterX, theme::kCenterY + 112);
+
+        // 30-day burn: secondary context, held muted so the breakdown leads.
+        char tok[16]; humanizeTokens(monthTokens, tok, sizeof(tok));
+        char mo[16];  formatDollars(monthCents, mo, sizeof(mo), false);
+        char line[40]; snprintf(line, sizeof(line), "30d  %s \xC2\xB7 %s", mo, tok);
+        int ctxY = rowY + 16;
+        drawDollarLine(c, line, theme::kCenterX, ctxY, theme::kFontBody, theme::kTextMuted);
+        drawSparkline(c, theme::kCenterX - 90, ctxY + 22, 180, 34,
+                      combined, kCostHistoryDays, maxCombined, theme::kTextMuted);
     } else {
         c.setFont(theme::kFontUnit);
         c.setTextColor(theme::kTextMuted);
