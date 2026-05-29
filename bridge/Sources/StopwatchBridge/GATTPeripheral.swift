@@ -20,6 +20,7 @@ public final class GATTPeripheral: NSObject {
     private let manager: CBPeripheralManager
     private let snapshotChar: CBMutableCharacteristic
     private let triggerChar:  CBMutableCharacteristic
+    private let costChar:     CBMutableCharacteristic
     private let service:      CBMutableService
 
     /// Initialised to a well-formed v1.0 stale-empty snapshot so a watch reading
@@ -27,6 +28,8 @@ public final class GATTPeripheral: NSObject {
     private var currentSnapshot: Data = SnapshotEncoder.staleEmpty()
     private var isAdvertising = false
     private var pendingNotify: Data?     // last data that updateValue refused (queue full); resent on isReadyToUpdate
+    private var currentCost: Data = CostEncoder.staleEmpty()
+    private var pendingCostNotify: Data?
     private var refreshTask: Task<Void, Never>?  // serializes trigger writes — newer cancels older
 
     public override init() {
@@ -42,8 +45,14 @@ public final class GATTPeripheral: NSObject {
             value: nil,
             permissions: [.writeable]
         )
+        self.costChar = CBMutableCharacteristic(
+            type: Protocol.costSnapshotUUID,
+            properties: [.read, .notify],
+            value: nil,
+            permissions: [.readable]
+        )
         let svc = CBMutableService(type: Protocol.serviceUUID, primary: true)
-        svc.characteristics = [self.snapshotChar, self.triggerChar]
+        svc.characteristics = [self.snapshotChar, self.triggerChar, self.costChar]
         self.service = svc
 
         self.manager = CBPeripheralManager(delegate: nil, queue: nil)
@@ -59,6 +68,16 @@ public final class GATTPeripheral: NSObject {
             pendingNotify = data
         } else {
             pendingNotify = nil
+        }
+    }
+
+    public func updateCostSnapshot(_ data: Data) {
+        precondition(data.count >= Protocol.costHeaderSize, "cost snapshot too short")
+        currentCost = data
+        if !manager.updateValue(data, for: costChar, onSubscribedCentrals: nil) {
+            pendingCostNotify = data
+        } else {
+            pendingCostNotify = nil
         }
     }
 }
@@ -148,17 +167,19 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
     }
 
     private func handleRead(peripheral: CBPeripheralManager, request: CBATTRequest) {
-        guard request.characteristic.uuid == Protocol.snapshotUUID else {
+        let source: Data
+        switch request.characteristic.uuid {
+        case Protocol.snapshotUUID:     source = currentSnapshot
+        case Protocol.costSnapshotUUID: source = currentCost
+        default:
             peripheral.respond(to: request, withResult: .attributeNotFound)
             return
         }
-        // ATT spec: offset == length is invalid for a single Read; it's only meaningful
-        // as the terminator in Long Reads (where CoreBluetooth handles the response).
-        if request.offset >= currentSnapshot.count {
+        if request.offset >= source.count {
             peripheral.respond(to: request, withResult: .invalidOffset)
             return
         }
-        request.value = currentSnapshot.subdata(in: request.offset..<currentSnapshot.count)
+        request.value = source.subdata(in: request.offset..<source.count)
         peripheral.respond(to: request, withResult: .success)
     }
 
@@ -175,10 +196,13 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
     }
 
     private func flushPendingNotify(peripheral: CBPeripheralManager) {
-        guard let pending = pendingNotify else { return }
-        if peripheral.updateValue(pending, for: snapshotChar, onSubscribedCentrals: nil) {
+        if let pending = pendingNotify,
+           peripheral.updateValue(pending, for: snapshotChar, onSubscribedCentrals: nil) {
             pendingNotify = nil
         }
-        // If still queue-full, leave pendingNotify in place; this delegate fires again when ready.
+        if let pendingCost = pendingCostNotify,
+           peripheral.updateValue(pendingCost, for: costChar, onSubscribedCentrals: nil) {
+            pendingCostNotify = nil
+        }
     }
 }
