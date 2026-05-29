@@ -97,3 +97,40 @@ final class BalanceStubURLProtocol: URLProtocol {
     }
     override func stopLoading() {}
 }
+
+@Suite struct BalanceCacheTests {
+    private func ok(_ id: String, _ remaining: Double) -> NormalizedBalance.Provider {
+        .init(kind: .generic, name: id, status: .ok, currencyCode: "USD",
+              remaining: remaining, updatedAt: Date(timeIntervalSince1970: 100))
+    }
+    private func failed(_ id: String) -> NormalizedBalance.Provider {
+        .init(kind: .generic, name: id, status: .unreachable, currencyCode: "", remaining: nil, updatedAt: nil)
+    }
+
+    @Test func retainsLastGoodForFailedProvider() {
+        var cache = BalanceCache()
+        _ = cache.record(NormalizedBalance(capturedAt: Date(timeIntervalSince1970: 100), flags: [],
+                                           providers: [ok("a", 10), ok("b", 20)]))
+        let merged = cache.record(NormalizedBalance(capturedAt: Date(timeIntervalSince1970: 200), flags: [],
+                                                    providers: [failed("a"), ok("b", 15)]))
+        let snap = Snapshot_decodeBalances(merged)
+        #expect(snap.count == 2)
+        let a = snap.first { $0.name == "a" }!
+        #expect(a.status == BalanceStatus.stale.rawValue)   // last-good kept, marked stale
+        #expect(a.balanceMinor == 1000)                     // $10.00 retained
+        let b = snap.first { $0.name == "b" }!
+        #expect(b.balanceMinor == 1500)                     // fresh $15.00
+    }
+}
+
+struct DecodedBalance { var name: String; var status: UInt8; var balanceMinor: UInt32 }
+func Snapshot_decodeBalances(_ data: Data) -> [DecodedBalance] {
+    let b = [UInt8](data); let count = Int(b[2]); var out: [DecodedBalance] = []
+    for i in 0..<count {
+        let o = 8 + 36 * i
+        let name = String(decoding: b[o+20..<o+36].prefix { $0 != 0 }, as: UTF8.self)
+        let bal = UInt32(b[o+8]) | UInt32(b[o+9])<<8 | UInt32(b[o+10])<<16 | UInt32(b[o+11])<<24
+        out.append(.init(name: name, status: b[o+1], balanceMinor: bal))
+    }
+    return out
+}
