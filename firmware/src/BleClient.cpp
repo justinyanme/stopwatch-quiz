@@ -10,7 +10,8 @@ void BleClient::begin() {
     NimBLEDevice::init("stopwatch");
 }
 
-BleClient::FetchResult BleClient::fetch(uint8_t scope, uint8_t *outBytes, size_t bufSize, size_t &outLen) {
+BleClient::FetchResult BleClient::fetchInto(const char *charUuid, uint8_t scope,
+                                            uint8_t *outBytes, size_t bufSize, size_t &outLen) {
     outLen = 0;
     auto *scan = NimBLEDevice::getScan();
     scan->setActiveScan(true);
@@ -37,8 +38,6 @@ BleClient::FetchResult BleClient::fetch(uint8_t scope, uint8_t *outBytes, size_t
         return FetchResult::ConnectFailed;
     }
 
-    // Inner read attempt: writes trigger, then reads snapshot. Tried up to
-    // twice on transient read failure per spec §9.2.
     auto tryReadOnce = [&]() -> FetchResult {
         auto *svc = client->getService(svcUuid);
         if (!svc) return FetchResult::ReadFailed;
@@ -48,13 +47,11 @@ BleClient::FetchResult BleClient::fetch(uint8_t scope, uint8_t *outBytes, size_t
         uint8_t scopeBuf[1] = { scope };
         trigger->writeValue(scopeBuf, 1, /*response=*/false);
 
-        // Small grace period for the bridge to refresh before we read.
         delay(150);
 
-        auto *snap = svc->getCharacteristic(NimBLEUUID(kSnapshotUUID));
-        if (!snap) return FetchResult::ReadFailed;
-        // NimBLE v2.x: readValue() returns NimBLEAttValue, not std::string
-        NimBLEAttValue value = snap->readValue();
+        auto *ch = svc->getCharacteristic(NimBLEUUID(charUuid));
+        if (!ch) return FetchResult::ReadFailed;
+        NimBLEAttValue value = ch->readValue();
         if (value.size() == 0 || value.size() > bufSize) return FetchResult::ReadFailed;
         memcpy(outBytes, value.data(), value.size());
         outLen = value.size();
@@ -70,6 +67,14 @@ BleClient::FetchResult BleClient::fetch(uint8_t scope, uint8_t *outBytes, size_t
     client->disconnect();
     NimBLEDevice::deleteClient(client);
     return result;
+}
+
+BleClient::FetchResult BleClient::fetch(uint8_t scope, uint8_t *outBytes, size_t bufSize, size_t &outLen) {
+    return fetchInto(kSnapshotUUID, scope, outBytes, bufSize, outLen);
+}
+
+BleClient::FetchResult BleClient::fetchCost(uint8_t *outBytes, size_t bufSize, size_t &outLen) {
+    return fetchInto(kCostSnapshotUUID, kTriggerScopeCost, outBytes, bufSize, outLen);
 }
 
 }  // namespace stopwatch

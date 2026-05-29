@@ -12,6 +12,8 @@
 #include "Theme.h"
 #include "Views/Overview.h"
 #include "Views/Provider.h"
+#include "Views/Spend.h"
+#include "CostCodec.h"
 
 stopwatch::App         g_app;
 stopwatch::BleClient   g_ble;
@@ -19,32 +21,32 @@ stopwatch::Renderer    g_renderer;
 stopwatch::Power       g_power;
 stopwatch::SnapshotStore g_store;
 stopwatch::Snapshot    g_snap;
+stopwatch::CostSnapshot g_cost;
+bool                    g_costLoaded = false;
 
-static void renderCurrent() {
+static void drawCurrentView() {
     using namespace stopwatch;
     auto link = g_app.linkStatus();
     switch (g_app.currentView()) {
-        case ViewId::Overview: views::drawOverview(g_renderer, g_snap, link); break;
-        case ViewId::Codex:    views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link); break;
-        case ViewId::Claude:   views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link); break;
-        case ViewId::Gemini:   views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link); break;
+        case ViewId::Overview:   views::drawOverview(g_renderer, g_snap, link); break;
+        case ViewId::TotalSpend: views::drawTotalSpend(g_renderer, g_cost, link); break;
+        case ViewId::Codex:      views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link, g_cost.find(ProviderID::Codex)); break;
+        case ViewId::CodexCost:  views::drawProviderCost(g_renderer, g_cost, ProviderID::Codex, link); break;
+        case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link, g_cost.find(ProviderID::Claude)); break;
+        case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link); break;
+        case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link, nullptr); break;
     }
+}
+
+static void renderCurrent() {
+    drawCurrentView();
     g_renderer.present();
 }
 
-// Paint a "Refreshing…" overlay on top of the current view before a blocking
-// BLE fetch. Lets the user see something happened when they long-press KEYA.
 static void renderRefreshingOverlay(const char *label) {
     using namespace stopwatch;
-    auto link = g_app.linkStatus();
-    switch (g_app.currentView()) {
-        case ViewId::Overview: views::drawOverview(g_renderer, g_snap, link); break;
-        case ViewId::Codex:    views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link); break;
-        case ViewId::Claude:   views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link); break;
-        case ViewId::Gemini:   views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link); break;
-    }
+    drawCurrentView();
     auto &c = g_renderer.canvas();
-    // Dim band across the center of the circle.
     c.fillRect(0, theme::kCenterY + theme::kRingOuterR / 2 - 14,
                M5.Display.width(), 28, 0x303030);
     c.setTextDatum(middle_center);
@@ -73,9 +75,33 @@ static bool fetchAndApply(uint8_t scope) {
         return false;
     }
     g_snap = snap;
-    g_store.save(buf, len);
+    g_store.save("snap", buf, len);
     g_app.setLinkStatus(stopwatch::LinkStatus::Connected);
     return true;
+}
+
+static bool fetchCostAndApply() {
+    uint8_t buf[stopwatch::kCostSnapshotMaxSize];
+    size_t len = 0;
+    if (g_ble.fetchCost(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) {
+        return false;
+    }
+    stopwatch::CostSnapshot cs;
+    if (stopwatch::decodeCostSnapshot(buf, len, cs) != stopwatch::CostDecodeResult::Ok) {
+        return false;
+    }
+    g_cost = cs;
+    g_store.save("cost", buf, len);
+    g_costLoaded = true;
+    return true;
+}
+
+// On first entry to any spend screen this wake-session, pull cost once.
+static void ensureCostLoaded() {
+    using namespace stopwatch;
+    if (!isSpendView(g_app.currentView()) || g_costLoaded) return;
+    renderRefreshingOverlay("Loading $\xE2\x80\xA6");
+    fetchCostAndApply();
 }
 
 static bool applyRefreshRequest(const char *label) {
@@ -89,7 +115,9 @@ static bool applyRefreshRequest(const char *label) {
 static void enterSleepAndRefreshOnWake() {
     g_power.enterLightSleep();
     g_app.noteWakeFromSleep();
+    g_costLoaded = false;
     applyRefreshRequest("Refreshing\xE2\x80\xA6");
+    ensureCostLoaded();
     renderCurrent();
 }
 
@@ -142,14 +170,19 @@ void setup() {
     g_ble.begin();
     Serial.println("[stopwatch-fw] all subsystems initialized");
 
-    // Load last cached snapshot for instant first paint.
+    // Load last cached snapshots for instant first paint.
     uint8_t buf[stopwatch::kSnapshotSize];
     size_t len = 0;
-    if (g_store.load(buf, sizeof(buf), len)) {
+    if (g_store.load("snap", buf, sizeof(buf), len)) {
         stopwatch::decodeSnapshot(buf, len, g_snap);
         Serial.printf("[stopwatch-fw] loaded cached snapshot, %u bytes\n", (unsigned)len);
     } else {
         Serial.println("[stopwatch-fw] no cached snapshot");
+    }
+    uint8_t cbuf[stopwatch::kCostSnapshotMaxSize];
+    size_t clen = 0;
+    if (g_store.load("cost", cbuf, sizeof(cbuf), clen)) {
+        stopwatch::decodeCostSnapshot(cbuf, clen, g_cost);  // shown until first fresh fetch
     }
     renderCurrent();
     Serial.println("[stopwatch-fw] first render done; starting BLE fetch");
@@ -175,6 +208,7 @@ void loop() {
             g_app.clearSleepRequest();
             enterSleepAndRefreshOnWake();
         } else if (changed) {
+            ensureCostLoaded();
             renderCurrent();
         }
     }
