@@ -75,6 +75,44 @@ import Testing
         #expect(usage.flags.contains(.providerMissing))   // set by client because providers.isEmpty
     }
 
+    private func utcDate(_ ymd: String) -> Date {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: ymd)!
+    }
+
+    @Test func parsesCostFixture() async throws {
+        let json = try Fixtures.loadJSON("codexbar-cost-two")
+        StubURLProtocol.stub = .init(status: 200, body: json)
+
+        let client = CodexbarClient(port: 51111, session: stubSession())
+        let cost = try await client.fetchCost(scope: .all, now: utcDate("2026-05-29"))
+
+        #expect(cost.providers.count == 2)
+        let codex = cost.providers[0]
+        #expect(codex.providerID == .codex)
+        #expect(codex.todayCostUSD == 12.0)
+        #expect(codex.monthCostUSD == 300.0)
+        #expect(codex.todayTokens == 1_000_000)
+        #expect(codex.monthTokens == 100_000_000)
+        #expect(codex.topModel == "gpt-5.5")
+        #expect(codex.history.count == 30)
+        #expect(codex.history[29] == 120.0)
+        #expect(codex.history[27] == 10.0)
+        #expect(cost.providers[1].topModel == "claude-opus-4-7")  // full name; encoder shortens
+        #expect(cost.providers[1].history[29] == 60.0)
+    }
+
+    @Test func emptyCostArraySetsUnavailable() async throws {
+        StubURLProtocol.stub = .init(status: 200, body: Data("[]".utf8))
+        let client = CodexbarClient(port: 51111, session: stubSession())
+        let cost = try await client.fetchCost(scope: .all, now: utcDate("2026-05-29"))
+        #expect(cost.providers.isEmpty)
+        #expect(cost.flags.contains(.costUnavailable))
+    }
+
     // MARK: - URLProtocol stub plumbing
 
     private func stubSession() -> URLSession {

@@ -121,6 +121,79 @@ public actor CodexbarClient {
         }
     }
 
+    public func fetchCost(scope: Scope = .all, now: Date = Date()) async throws -> NormalizedCost {
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host   = "127.0.0.1"
+        components.port   = Int(port)
+        components.path   = "/cost"
+        if scope != .all {
+            components.queryItems = [.init(name: "provider", value: scope.rawValue)]
+        }
+        var req = URLRequest(url: components.url!)
+        req.timeoutInterval = timeout
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            throw FetchError.transport(error)
+        }
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw FetchError.http(http.statusCode)
+        }
+        do {
+            return try decodeCost(data, now: now)
+        } catch {
+            throw FetchError.decode(error)
+        }
+    }
+
+    private func decodeCost(_ data: Data, now: Date) throws -> NormalizedCost {
+        let raw = try JSONDecoder().decode([RawCost].self, from: data)
+
+        let providers = raw.compactMap { c -> NormalizedCost.Provider? in
+            guard let id = ProviderID(fromString: c.provider) else { return nil }
+            let dailyPairs = (c.daily ?? []).map { (date: $0.date, costUSD: $0.totalCost ?? 0) }
+            let breakdowns = (c.daily ?? []).map { day -> [String: Double] in
+                var m: [String: Double] = [:]
+                for b in day.modelBreakdowns ?? [] { m[b.modelName, default: 0] += b.cost ?? 0 }
+                return m
+            }
+            return .init(
+                providerID:   id,
+                todayCostUSD: c.sessionCostUSD,
+                monthCostUSD: c.last30DaysCostUSD,
+                todayTokens:  c.sessionTokens.map { UInt64(max(0, $0.rounded())) },
+                monthTokens:  c.last30DaysTokens.map { UInt64(max(0, $0.rounded())) },
+                topModel:     Self.topModel(from: breakdowns),
+                history:      Self.alignDailyHistory(dailyPairs, anchor: now,
+                                                     days: Protocol.costHistoryDays)
+            )
+        }
+
+        var flags: CostFlags = []
+        if providers.isEmpty { flags.insert(.costUnavailable) }
+        return .init(capturedAt: now, flags: flags, providers: providers)
+    }
+
+    private struct RawCost: Decodable {
+        var provider: String
+        var sessionCostUSD: Double?
+        var sessionTokens: Double?
+        var last30DaysCostUSD: Double?
+        var last30DaysTokens: Double?
+        var daily: [Daily]?
+
+        struct Daily: Decodable {
+            var date: String
+            var totalCost: Double?
+            var modelBreakdowns: [ModelBreakdown]?
+            struct ModelBreakdown: Decodable { var modelName: String; var cost: Double? }
+        }
+    }
+
     /// Buckets sparse daily (date string, USD) into a dense `days`-length array,
     /// index `days-1` = anchor's UTC day, older days toward index 0. Out-of-window dropped.
     static func alignDailyHistory(_ daily: [(date: String, costUSD: Double)],
