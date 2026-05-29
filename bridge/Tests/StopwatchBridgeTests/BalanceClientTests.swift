@@ -78,6 +78,20 @@ import Testing
         #expect(BalanceClient.value(at: "a.missing", in: obj) == nil)
         #expect(BalanceClient.value(at: "a.b[3].c", in: obj) == nil)   // out of range
     }
+
+    @Test func scaleConvertsRawUnitsToCurrency() async {
+        // AiHubMix: GET /api/user/self → {"data":{"quota":N}}, raw auth, 500000 quota = $1.
+        BalanceStubURLProtocol.routes = [
+            "aihubmix.com": .init(status: 200, body: Data(#"{"data":{"quota":2500000}}"#.utf8))
+        ]
+        var pc = ProviderConfig(id: "ah", name: "AiHubMix", kind: "generic")
+        pc.endpoint = "https://aihubmix.com/api/user/self"
+        pc.balancePath = "data.quota"; pc.currency = "USD"; pc.scale = 500000; pc.auth = "raw"
+        let p = await BalanceClient(keyStore: FakeKeyStore(["ah": "fd-tok"]), session: stubSession())
+            .fetchAll([pc.resolved()], now: .init(timeIntervalSince1970: 100)).providers[0]
+        #expect(p.status == .ok)
+        #expect(p.remaining == 5.0)        // 2,500,000 quota / 500,000 = $5
+    }
 }
 
 final class BalanceStubURLProtocol: URLProtocol {

@@ -36,18 +36,20 @@ public actor BalanceClient {
                   usage: usage, updatedAt: updatedAt, isLow: isLow)
         }
 
-        // 1. Resolve key (unless keyless).
-        var key: String? = nil
+        // 1. Resolve key (unless keyless) and build the Authorization header.
+        var authorization: String? = nil
         if p.auth != "none" {
             guard let k = keyStore.key(for: p.id) else { return record(status: .authError) }
-            key = k
+            // "raw" sends the token verbatim (e.g. AiHubMix); otherwise use the Bearer scheme.
+            authorization = (p.auth == "raw") ? k : "Bearer \(k)"
         }
 
         // 2. Fetch (OpenRouter falls back /credits → /key).
+        let scale = p.scale > 0 ? p.scale : 1
         let attempts = openRouterFallback(p)
         var lastStatus: BalanceStatus = .unreachable
         for attempt in attempts {
-            switch await get(attempt.endpoint, key: key) {
+            switch await get(attempt.endpoint, authorization: authorization) {
             case .failure(let s):
                 lastStatus = s
             case .success(let obj):
@@ -57,10 +59,13 @@ public actor BalanceClient {
                     return record(status: .ok, remaining: nil, unlimited: true,
                                   usage: nil, currency: currency, updatedAt: now, isLow: false)
                 }
-                guard let bal = numberAt(attempt.balancePath, in: obj) else {
+                guard let rawBal = numberAt(attempt.balancePath, in: obj) else {
                     lastStatus = .unreachable; continue
                 }
-                let usage = attempt.usagePath.flatMap { numberAt($0, in: obj) }
+                // Raw values may be provider-internal units (e.g. AiHubMix quota, 500000 = $1);
+                // `scale` divides them into the currency amount.
+                let bal = rawBal / scale
+                let usage = attempt.usagePath.flatMap { numberAt($0, in: obj) }.map { $0 / scale }
                 let remaining = usage.map { bal - $0 } ?? bal
                 let currency = resolveCurrency(attempt.currency, in: obj)
                 let low = p.lowThreshold.map { remaining < $0 } ?? false
@@ -97,10 +102,10 @@ public actor BalanceClient {
 
     private enum GetResult { case success(Any); case failure(BalanceStatus) }
 
-    private func get(_ endpoint: String, key: String?) async -> GetResult {
+    private func get(_ endpoint: String, authorization: String?) async -> GetResult {
         guard let url = URL(string: endpoint) else { return .failure(.unreachable) }
         var req = URLRequest(url: url); req.timeoutInterval = timeout
-        if let key { req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+        if let authorization { req.setValue(authorization, forHTTPHeaderField: "Authorization") }
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         do {
             let (data, resp) = try await session.data(for: req)
