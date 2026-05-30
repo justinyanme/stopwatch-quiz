@@ -33,6 +33,15 @@ public enum Protocol {
     public static let balanceMaxRecords  = 16
     public static let triggerScopeBalances: UInt8 = 0x05
     public static let balanceRecordFlagLow: UInt8 = 0b0000_0001
+
+    public static let usageSnapshotUUID = CBUUID(string: "7E2C5A19-4B8F-4D3A-9E61-2F7A8C0B5D34")
+    public static let usageVersionMajor: UInt8 = 1
+    public static let usageVersionMinor: UInt8 = 0
+    public static let usageHeaderSize   = 12
+    public static let usageRecordSize   = 96
+    public static let usageHistoryDays  = 30
+    public static let usageMaxRecords   = 4
+    public static let triggerScopeUsage: UInt8 = 0x06
 }
 
 public struct SnapshotFlags: OptionSet, Sendable {

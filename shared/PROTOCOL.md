@@ -141,6 +141,44 @@ Independent of the other characteristics; its own `(versionMajor, versionMinor)`
 
 Versioning follows the same major/minor rules as §3.3.
 
+## 3C. `BalanceUsage` payload (binary)
+
+Independent versioning. Size = `12 + 96 × recordCount`. Carries only usage-capable
+providers (OpenRouter, DeepSeek, AIHubMix). Watch reads lazily on entering a provider
+detail screen. Characteristic `7E2C5A19-4B8F-4D3A-9E61-2F7A8C0B5D34`, trigger scope `0x06`.
+
+### 3C.1 Header (12 bytes)
+
+| Offset | Field | Type | Notes |
+|--------|-------|------|-------|
+| 0 | `versionMajor` | u8 | `0x01` |
+| 1 | `versionMinor` | u8 | `0x00` |
+| 2 | `recordCount` | u8 | 0–4 |
+| 3 | `flags` | u8 | bit0 stale, bit1 bridge_error, bit2 unavailable |
+| 4 | `capturedAt` | u32 | unix seconds |
+| 8 | `historyDays` | u8 | always 30 |
+| 9 | reserved | u8 | 0 |
+| 10 | reserved | u16 | 0 (scales are per-record) |
+
+### 3C.2 Per-record (96 bytes, repeated `recordCount` times)
+
+| Offset | Field | Type | Notes |
+|--------|-------|------|-------|
+| 0 | `kind` | u8 | BalanceKind enum |
+| 1 | `status` | u8 | BalanceStatus enum |
+| 2 | `currency` | char[3] | ASCII |
+| 5 | `decimals` | u8 | currency minor-unit exponent |
+| 6 | `costUnit` | u16 | `costHistory[i] × costUnit = minor units` |
+| 8 | `tokenUnit` | u32 | `tokenHistory[i] × tokenUnit = tokens` |
+| 12 | `todayCostMinor` | u32 | `0xFFFFFFFF` = unknown |
+| 16 | `monthCostMinor` | u32 | |
+| 20 | `todayTokens` | u32 | |
+| 24 | `monthTokens` | u32 | |
+| 28 | `todayRequests` | u32 | |
+| 32 | `monthRequests` | u32 | |
+| 36 | `costHistory[30]` | u8×30 | scaled by `costUnit` |
+| 66 | `tokenHistory[30]` | u8×30 | scaled by `tokenUnit` |
+
 ## 4. Test fixtures
 
 `shared/fixtures/*.json` holds canned `codexbar serve` responses. `shared/fixtures/*.hex` holds the expected output of `SnapshotEncoder.encode(json) → Data` for each input.

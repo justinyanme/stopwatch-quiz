@@ -52,6 +52,21 @@ constexpr uint8_t kBalanceRecordFlagLow   = 0b00000001;
 
 constexpr uint8_t kTriggerScopeBalances = 0x05;
 
+constexpr const char *kUsageSnapshotUUID = "7E2C5A19-4B8F-4D3A-9E61-2F7A8C0B5D34";
+
+constexpr uint8_t  kUsageVersionMajor  = 1;
+constexpr uint8_t  kUsageHeaderSize    = 12;
+constexpr uint8_t  kUsageRecordSize    = 96;
+constexpr uint8_t  kUsageHistoryDays   = 30;
+constexpr uint8_t  kUsageMaxRecords    = 4;    // openrouter, deepseek, aihubmix (+1 headroom)
+constexpr uint16_t kUsageSnapshotMaxSize = kUsageHeaderSize + kUsageRecordSize * kUsageMaxRecords;  // 396
+
+constexpr uint8_t kUsageFlagStale       = 0b00000001;
+constexpr uint8_t kUsageFlagBridgeError = 0b00000010;
+constexpr uint8_t kUsageFlagUnavailable = 0b00000100;
+
+constexpr uint8_t kTriggerScopeUsage    = 0x06;
+
 enum class BalanceKind : uint8_t {
     Generic = 0, OpenRouter = 1, DeepSeek = 2, Groq = 3, Together = 4,
     Fireworks = 5, SiliconFlow = 6, Moonshot = 7, Zhipu = 8
