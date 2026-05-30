@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StopwatchBridge
 
-@Suite(.serialized) struct UsageClientTests {
+extension NetworkStubTests.UsageClientTests {
     private func stubSession() -> URLSession {
         let cfg = URLSessionConfiguration.ephemeral
         cfg.protocolClasses = [BalanceStubURLProtocol.self]
@@ -49,5 +49,17 @@ import Testing
         let snap = await client.fetchAll([.init(kind: .openrouter, credentialID: "openrouter-mgmt")],
                                          now: Date(timeIntervalSince1970: 100))
         #expect(snap.providers[0].status == .authError)
+    }
+
+    @Test func negativeOrNaNCountsDoNotCrash() async {
+        let body = #"{"data":[{"date":"2025-05-28","usage":1.0,"requests":-3,"prompt_tokens":-100,"completion_tokens":0,"reasoning_tokens":0}]}"#
+        BalanceStubURLProtocol.routes = ["openrouter.ai": .init(status: 200, body: Data(body.utf8))]
+        defer { BalanceStubURLProtocol.routes = [:] }
+        let client = UsageClient(keyStore: FakeKeyStore(["openrouter-mgmt": "k"]), session: stubSession())
+        let now = ISO8601DateFormatter().date(from: "2025-05-28T12:00:00Z")!
+        let p = await client.fetchAll([.init(kind: .openrouter, credentialID: "openrouter-mgmt")], now: now).providers[0]
+        #expect(p.status == .ok)                 // did not crash
+        #expect(p.todayTokens == 0)              // negatives clamped to 0
+        #expect(p.todayRequests == 0)
     }
 }

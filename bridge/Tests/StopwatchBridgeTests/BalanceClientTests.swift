@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import StopwatchBridge
 
-@Suite(.serialized) struct BalanceClientTests {
+extension NetworkStubTests.BalanceClientTests {
 
     private func stubSession() -> URLSession {
         let cfg = URLSessionConfiguration.ephemeral
@@ -20,6 +20,7 @@ import Testing
         BalanceStubURLProtocol.routes = [
             "openrouter.ai": .init(status: 200, body: Data(#"{"data":{"total_credits":50.0,"total_usage":7.9}}"#.utf8))
         ]
+        defer { BalanceStubURLProtocol.routes = [:] }
         let client = BalanceClient(keyStore: FakeKeyStore(["or": "sk-x"]), session: stubSession())
         let snap = await client.fetchAll([cfg("or", kind: "openrouter", low: 5.0)], now: .init(timeIntervalSince1970: 100))
         #expect(snap.providers.count == 1)
@@ -35,6 +36,7 @@ import Testing
         BalanceStubURLProtocol.routes = [
             "api.deepseek.com": .init(status: 200, body: Data(#"{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"318.50"}]}"#.utf8))
         ]
+        defer { BalanceStubURLProtocol.routes = [:] }
         let client = BalanceClient(keyStore: FakeKeyStore(["ds": "sk-y"]), session: stubSession())
         let p = await client.fetchAll([cfg("ds", kind: "deepseek")], now: .init(timeIntervalSince1970: 100)).providers[0]
         #expect(p.remaining == 318.5)
@@ -51,6 +53,7 @@ import Testing
 
     @Test func http401IsAuthError_402IsDepleted_timeoutUnreachable() async {
         BalanceStubURLProtocol.routes = ["api.deepseek.com": .init(status: 401, body: Data())]
+        defer { BalanceStubURLProtocol.routes = [:] }
         let c = BalanceClient(keyStore: FakeKeyStore(["ds": "k"]), session: stubSession())
         #expect(await c.fetchAll([cfg("ds", kind: "deepseek")], now: .init()).providers[0].status == .authError)
 
@@ -65,6 +68,7 @@ import Testing
         BalanceStubURLProtocol.routes = [
             "openrouter.ai": .init(status: 200, body: Data(#"{"data":{"total_credits":4.0,"total_usage":1.0}}"#.utf8))
         ]
+        defer { BalanceStubURLProtocol.routes = [:] }
         let c = BalanceClient(keyStore: FakeKeyStore(["or": "k"]), session: stubSession())
         let p = await c.fetchAll([cfg("or", kind: "openrouter", low: 5.0)], now: .init()).providers[0]
         #expect(p.remaining == 3.0)
@@ -84,6 +88,7 @@ import Testing
         BalanceStubURLProtocol.routes = [
             "aihubmix.com": .init(status: 200, body: Data(#"{"data":{"quota":2500000}}"#.utf8))
         ]
+        defer { BalanceStubURLProtocol.routes = [:] }
         var pc = ProviderConfig(id: "ah", name: "AiHubMix", kind: "generic")
         pc.endpoint = "https://aihubmix.com/api/user/self"
         pc.balancePath = "data.quota"; pc.currency = "USD"; pc.scale = 500000; pc.auth = "raw"

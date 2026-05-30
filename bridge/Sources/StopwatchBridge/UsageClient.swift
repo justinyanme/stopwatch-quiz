@@ -82,10 +82,10 @@ public actor UsageClient {
             let idx = 29 - diff
             guard idx >= 0 && idx < 30 else { continue }
             cost[idx] += num(row["usage"])
-            let pt = UInt64(num(row["prompt_tokens"])); let ct = UInt64(num(row["completion_tokens"]))
-            let rt = UInt64(num(row["reasoning_tokens"]))
+            let pt = u64(num(row["prompt_tokens"])); let ct = u64(num(row["completion_tokens"]))
+            let rt = u64(num(row["reasoning_tokens"]))
             toks[idx] += pt + ct + rt
-            reqs[idx] += UInt64(num(row["requests"]))
+            reqs[idx] += u64(num(row["requests"]))
         }
         return .init(kind: .openrouter, status: .ok, currencyCode: "USD", currencyDecimals: 2,
                      todayCost: cost[29], monthCost: cost.reduce(0,+),
@@ -100,5 +100,12 @@ public actor UsageClient {
         case let s as String:   return Double(s) ?? 0
         default:                return 0
         }
+    }
+
+    /// Safe Double→UInt64: clamps negatives, NaN, and infinities to 0 (a bare
+    /// UInt64(Double) traps on those). Token/request counts are never negative.
+    private func u64(_ v: Double) -> UInt64 {
+        guard v.isFinite, v >= 0 else { return 0 }
+        return UInt64(v)
     }
 }
