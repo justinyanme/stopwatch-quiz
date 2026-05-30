@@ -12,6 +12,9 @@ public actor BridgeService {
     private var costCache = CostCache()
     private let balanceClient: BalanceClient
     private var balanceCache = BalanceCache()
+    private let usageClient: UsageClient
+    private var usageCache = UsageCache()
+    private let usageTargets: [UsageClient.Target]
     private let providers: [ProviderConfig.Resolved]
     private var lastPolled: [String: Date] = [:]
 
@@ -22,6 +25,11 @@ public actor BridgeService {
         let loadedProviders = (try? ProvidersConfig.load())?.map { $0.resolved() } ?? []
         self.providers = loadedProviders
         self.balanceClient = BalanceClient(keyStore: KeychainStore())
+        self.usageClient = UsageClient(keyStore: KeychainStore())
+        self.usageTargets = loadedProviders.compactMap { p in
+            guard let k = p.usageKind, let cid = p.usageCredentialID else { return nil }
+            return UsageClient.Target(kind: k, credentialID: cid)
+        }
         // GATTPeripheral is @MainActor; constructing it from an async init hops to main.
         self.peripheral = await GATTPeripheral()
     }
@@ -69,6 +77,10 @@ public actor BridgeService {
             await handleBalanceRefresh(force: true)
             return
         }
+        if scope == Protocol.triggerScopeUsage {
+            await handleUsageRefresh()
+            return
+        }
         if scope == Protocol.triggerScopeCost {
             await handleCostRefresh()
             return
@@ -97,6 +109,16 @@ public actor BridgeService {
         // usage triggers don't need a full /cost re-fetch (codexbar /cost is slow). Scope 0x04
         // remains the explicit cost-only path (handled by the early return above).
         if scope == 0 { await handleCostRefresh() }
+    }
+
+    private func handleUsageRefresh() async {
+        guard !usageTargets.isEmpty else {
+            await peripheral.updateUsageSnapshot(UsageEncoder.unavailableEmpty()); return
+        }
+        let fresh = await usageClient.fetchAll(usageTargets)
+        await peripheral.updateUsageSnapshot(usageCache.recordSuccess(fresh))
+        let summary = fresh.providers.map { "\($0.kind)=\($0.status)" }.joined(separator: " ")
+        FileHandle.standardOutput.write(Data("usage ok: \(summary)\n".utf8))
     }
 
     private func handleCostRefresh() async {

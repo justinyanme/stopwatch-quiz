@@ -1,0 +1,14 @@
+{
+  "_comment": "Reference values for usage-openrouter.hex. Generated from NormalizedUsageSpend.openRouterFixture via UsageEncoder. Regenerate the .hex with: REGEN=1 swift test --filter writesAndMatchesOpenRouterFixture (run from bridge/).",
+  "capturedAt": 1748455822,
+  "providers": [
+    {
+      "kind": "openrouter", "currency": "USD", "decimals": 2,
+      "todayCost": 100.0, "monthCost": 150.0,
+      "todayTokens": 1000000, "monthTokens": 1500000,
+      "todayRequests": 1240, "monthRequests": 9000,
+      "costHistory_last2": [50.0, 100.0],
+      "tokenHistory_last2": [500000, 1000000]
+    }
+  ]
+}

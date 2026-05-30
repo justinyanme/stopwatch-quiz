@@ -22,6 +22,7 @@ public final class GATTPeripheral: NSObject {
     private let triggerChar:  CBMutableCharacteristic
     private let costChar:     CBMutableCharacteristic
     private let balanceChar:  CBMutableCharacteristic
+    private let usageChar:    CBMutableCharacteristic
     private let service:      CBMutableService
 
     /// Initialised to a well-formed v1.0 stale-empty snapshot so a watch reading
@@ -33,6 +34,8 @@ public final class GATTPeripheral: NSObject {
     private var pendingCostNotify: Data?
     private var currentBalance: Data = BalanceEncoder.staleEmpty()
     private var pendingBalanceNotify: Data?
+    private var currentUsage: Data = UsageEncoder.staleEmpty()
+    private var pendingUsageNotify: Data?
     private var refreshTask: Task<Void, Never>?  // serializes trigger writes — newer cancels older
 
     public override init() {
@@ -60,8 +63,14 @@ public final class GATTPeripheral: NSObject {
             value: nil,
             permissions: [.readable]
         )
+        self.usageChar = CBMutableCharacteristic(
+            type: Protocol.usageSnapshotUUID,
+            properties: [.read, .notify],
+            value: nil,
+            permissions: [.readable]
+        )
         let svc = CBMutableService(type: Protocol.serviceUUID, primary: true)
-        svc.characteristics = [self.snapshotChar, self.triggerChar, self.costChar, self.balanceChar]
+        svc.characteristics = [self.snapshotChar, self.triggerChar, self.costChar, self.balanceChar, self.usageChar]
         self.service = svc
 
         self.manager = CBPeripheralManager(delegate: nil, queue: nil)
@@ -97,6 +106,16 @@ public final class GATTPeripheral: NSObject {
             pendingBalanceNotify = data
         } else {
             pendingBalanceNotify = nil
+        }
+    }
+
+    public func updateUsageSnapshot(_ data: Data) {
+        precondition(data.count >= Protocol.usageHeaderSize, "usage snapshot too short")
+        currentUsage = data
+        if !manager.updateValue(data, for: usageChar, onSubscribedCentrals: nil) {
+            pendingUsageNotify = data
+        } else {
+            pendingUsageNotify = nil
         }
     }
 }
@@ -191,6 +210,7 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         case Protocol.snapshotUUID:     source = currentSnapshot
         case Protocol.costSnapshotUUID:    source = currentCost
         case Protocol.balanceSnapshotUUID: source = currentBalance
+        case Protocol.usageSnapshotUUID:   source = currentUsage
         default:
             peripheral.respond(to: request, withResult: .attributeNotFound)
             return
@@ -227,6 +247,10 @@ extension GATTPeripheral: CBPeripheralManagerDelegate {
         if let pendingBalance = pendingBalanceNotify,
            peripheral.updateValue(pendingBalance, for: balanceChar, onSubscribedCentrals: nil) {
             pendingBalanceNotify = nil
+        }
+        if let pendingUsage = pendingUsageNotify,
+           peripheral.updateValue(pendingUsage, for: usageChar, onSubscribedCentrals: nil) {
+            pendingUsageNotify = nil
         }
     }
 }

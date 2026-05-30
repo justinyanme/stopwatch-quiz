@@ -32,7 +32,6 @@ ButtonEvent step(State &s, bool pressed, ButtonEvent shortEv, ButtonEvent longEv
 }  // namespace
 
 ButtonEvent pollButtons() {
-    M5.update();
     auto evA = step(sA, M5.BtnA.isPressed(), ButtonEvent::KeyAShort, ButtonEvent::KeyALong);
     if (evA != ButtonEvent::None) return evA;
     return step(sB, M5.BtnB.isPressed(), ButtonEvent::KeyBShort, ButtonEvent::KeyBLong);

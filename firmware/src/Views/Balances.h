@@ -12,4 +12,8 @@ int drawBalances(Renderer &renderer, const BalanceSnapshot &bal, LinkStatus link
 /// Visible height of the ledger row viewport used by drawBalances().
 int balancesViewportHeight();
 
+/// Returns the record index under screen-y `y` given `scrollOffset`, or -1 if the
+/// tap is outside any row / the viewport. `count` is the number of records.
+int balanceRowAtY(int y, int scrollOffset, int count);
+
 }  // namespace stopwatch::views

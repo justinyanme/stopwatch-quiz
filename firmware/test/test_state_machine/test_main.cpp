@@ -70,6 +70,41 @@ void test_linkStatusDefaultsToNoBridgeAndMutates(void) {
     TEST_ASSERT_EQUAL((int)LinkStatus::Connected, (int)app.linkStatus());
 }
 
+void test_balanceDetailEnterExit(void) {
+    App app; app.begin();
+    app.handleEvent(ButtonEvent::KeyAShort);     // Overview → Balances (prevView)
+    TEST_ASSERT_EQUAL((int)ViewId::Balances, (int)app.currentView());
+    TEST_ASSERT_FALSE(app.inBalanceDetail());
+
+    app.enterBalanceDetail(2);                   // tap row index 2
+    TEST_ASSERT_TRUE(app.inBalanceDetail());
+    TEST_ASSERT_EQUAL(2, app.balanceDetailIndex());
+
+    bool changed = app.handleEvent(ButtonEvent::KeyAShort);   // A = back out of detail
+    TEST_ASSERT_TRUE(changed);
+    TEST_ASSERT_FALSE(app.inBalanceDetail());
+    TEST_ASSERT_EQUAL((int)ViewId::Balances, (int)app.currentView());  // carousel unchanged
+}
+
+void test_balanceDetailToggle(void) {
+    App app; app.begin();
+    app.handleEvent(ButtonEvent::KeyAShort);     // → Balances
+    app.enterBalanceDetail(0);
+    TEST_ASSERT_EQUAL((int)UsageMetric::Cost, (int)app.usageMetric());
+    bool changed = app.handleEvent(ButtonEvent::KeyBShort);   // B = toggle in detail
+    TEST_ASSERT_TRUE(changed);
+    TEST_ASSERT_EQUAL((int)UsageMetric::Tokens, (int)app.usageMetric());
+    app.handleEvent(ButtonEvent::KeyBShort);                  // toggle back
+    TEST_ASSERT_EQUAL((int)UsageMetric::Cost, (int)app.usageMetric());
+}
+
+void test_carouselUnaffectedWhenNotInDetail(void) {
+    App app; app.begin();
+    app.handleEvent(ButtonEvent::KeyBShort);     // Overview → TotalSpend (normal carousel)
+    TEST_ASSERT_EQUAL((int)ViewId::TotalSpend, (int)app.currentView());
+    TEST_ASSERT_FALSE(app.inBalanceDetail());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_keyBShortCyclesForward);
@@ -79,5 +114,8 @@ int main(int, char **) {
     RUN_TEST(test_linkStatusDefaultsToNoBridgeAndMutates);
     RUN_TEST(test_isSpendView);
     RUN_TEST(test_balancesInCarousel);
+    RUN_TEST(test_balanceDetailEnterExit);
+    RUN_TEST(test_balanceDetailToggle);
+    RUN_TEST(test_carouselUnaffectedWhenNotInDetail);
     return UNITY_END();
 }

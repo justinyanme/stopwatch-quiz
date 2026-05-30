@@ -19,6 +19,8 @@ enum class LinkStatus : uint8_t {
     LinkError,    // ConnectFailed or ReadFailed (after retry)
 };
 
+enum class UsageMetric : uint8_t { Cost = 0, Tokens = 1 };
+
 class App {
 public:
     void begin();
@@ -33,11 +35,19 @@ public:
     LinkStatus linkStatus() const { return link_; }
     void setLinkStatus(LinkStatus s) { link_ = s; }
 
+    bool inBalanceDetail() const { return detailIndex_ >= 0; }
+    int  balanceDetailIndex() const { return detailIndex_; }
+    void enterBalanceDetail(int recordIndex) { detailIndex_ = recordIndex; metric_ = UsageMetric::Cost; }
+    void exitBalanceDetail() { detailIndex_ = -1; }
+    UsageMetric usageMetric() const { return metric_; }
+
 private:
     ViewId view_ = ViewId::Overview;
     bool wantsRefresh_ = false;
     bool wantsSleep_   = false;
     LinkStatus link_ = LinkStatus::NoBridge;
+    int detailIndex_ = -1;          // -1 = list; >=0 = showing that record's detail
+    UsageMetric metric_ = UsageMetric::Cost;
 };
 
 inline constexpr ViewId nextView(ViewId v) {
