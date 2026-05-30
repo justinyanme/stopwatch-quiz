@@ -197,6 +197,15 @@ int balancesViewportHeight() {
     return kViewportBottom - kViewportTop;
 }
 
+int balanceRowAtY(int y, int scrollOffset, int count) {
+    if (y < kViewportTop || y > kViewportBottom) return -1;
+    for (int i = 0; i < count; ++i) {
+        int rowY = kViewportTop + kRowHeight / 2 + i * kRowPitch - scrollOffset;
+        if (y >= rowY - kRowHeight / 2 && y <= rowY + kRowHeight / 2) return i;
+    }
+    return -1;
+}
+
 int drawBalances(Renderer &renderer, const BalanceSnapshot &bal, LinkStatus link, int scrollOffset) {
     auto &c = renderer.canvas();
     renderer.clear(kBalanceBg);
