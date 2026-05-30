@@ -43,6 +43,29 @@ void test_decodesRecord(void) {
     TEST_ASSERT_EQUAL(123, r->tokenHistory[29]);
 }
 
+void test_sentinelsBecomeNullopt(void) {
+    std::vector<uint8_t> b(kUsageHeaderSize + kUsageRecordSize, 0);
+    b[0] = 1;                       // versionMajor
+    b[2] = 1;                       // recordCount
+    b[8] = 30;                      // historyDays
+    uint8_t *r = b.data() + kUsageHeaderSize;
+    r[0] = (uint8_t)BalanceKind::OpenRouter;
+    r[1] = (uint8_t)BalanceStatus::Ok;
+    r[2] = 'U'; r[3] = 'S'; r[4] = 'D';
+    r[5] = 2;
+    for (int i = 12; i < 36; ++i) r[i] = 0xFF;   // all six optional u32 fields = unknown
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b.data(), b.size(), u));
+    const UsageRecord *rec = u.find(BalanceKind::OpenRouter);
+    TEST_ASSERT_NOT_NULL(rec);
+    TEST_ASSERT_FALSE(rec->todayCostMinor.has_value());
+    TEST_ASSERT_FALSE(rec->monthCostMinor.has_value());
+    TEST_ASSERT_FALSE(rec->todayTokens.has_value());
+    TEST_ASSERT_FALSE(rec->monthTokens.has_value());
+    TEST_ASSERT_FALSE(rec->todayRequests.has_value());
+    TEST_ASSERT_FALSE(rec->monthRequests.has_value());
+}
+
 void test_futureMajorRejected(void) {
     uint8_t b[kUsageHeaderSize] = {99,0,0,0,0,0,0,0,30,0,0,0};
     UsageSnapshot u;
@@ -67,6 +90,7 @@ void test_recordCountOverMaxRejected(void) {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_decodesRecord);
+    RUN_TEST(test_sentinelsBecomeNullopt);
     RUN_TEST(test_futureMajorRejected);
     RUN_TEST(test_tooShortRejected);
     RUN_TEST(test_recordCountOverMaxRejected);
