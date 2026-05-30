@@ -169,7 +169,19 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
             c.setTextDatum(middle_left);
             c.drawString(displayName(r.id), kNameX, rowY);
             c.setTextDatum(middle_center);
-            drawMoneyRight(c, r.todayCents.value_or(0), kAmtRightX, rowY, theme::kFontBody, pc);
+            if (r.todayCents) {
+                drawMoneyRight(c, r.todayCents.value(), kAmtRightX, rowY, theme::kFontBody, pc);
+            } else {
+                // codexbar has no price for today's model (e.g. a brand-new model it
+                // doesn't know yet), so today's cost is unknown — show an honest em-dash,
+                // never a fake "$0.00". Mirrors the per-provider cost view's convention.
+                c.setFont(theme::kFontBody);
+                const char *dash = "\xE2\x80\x94";  // em dash
+                c.setTextColor(pc);
+                c.setTextDatum(middle_left);
+                c.drawString(dash, kAmtRightX - c.textWidth(dash), rowY);
+                c.setTextDatum(middle_center);
+            }
             rowY += 40;
         }
 
