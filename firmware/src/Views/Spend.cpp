@@ -191,7 +191,10 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
         char line[40]; snprintf(line, sizeof(line), "30d  %s \xC2\xB7 %s", mo, tok);
         int ctxY = rowY + 16;
         drawDollarLine(c, line, theme::kCenterX, ctxY, theme::kFontBody, theme::kTextMuted);
-        drawSparkline(c, theme::kCenterX - 90, ctxY + 22, 180, 34,
+        // Width matches the per-provider chart (6px bars) so the two spend
+        // screens read alike; taller too. At most 2 ledger rows (codex+claude),
+        // so the chart sits high enough to grow without nearing pill or ring.
+        drawSparkline(c, theme::kCenterX - 105, ctxY + 22, 210, 46,
                       combined, kCostHistoryDays, maxCombined, theme::kTextMuted);
     } else {
         c.setFont(theme::kFontUnit);
@@ -278,7 +281,10 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
 
         int hist[kCostHistoryDays]; int maxV = 1;
         for (int d = 0; d < kCostHistoryDays; ++d) { hist[d] = r->history[d]; if (hist[d] > maxV) maxV = hist[d]; }
-        drawSparkline(c, theme::kCenterX - 90, theme::kCenterY + 88, 180, 36,
+        // Bigger sparkline: taller bars carry the trend, a touch wider so they
+        // don't read as thin spikes. Bottom corners stay ~r173 from center —
+        // clear of the ring (inner edge ~r192) even when the status pill shows.
+        drawSparkline(c, theme::kCenterX - 105, theme::kCenterY + 88, 210, 52,
                       hist, kCostHistoryDays, maxV, color);
     }
 
