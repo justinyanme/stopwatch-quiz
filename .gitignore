@@ -7,6 +7,9 @@ build/
 .vscode/
 .idea/
 
+# Python bytecode cache (firmware/tools/)
+__pycache__/
+
 # Swift Package Manager build artifacts (per-target .build dirs)
 .build/
 

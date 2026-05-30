@@ -2,6 +2,7 @@
 #include "../IconLookup.h"
 #include "../CostFormat.h"
 #include "../Theme.h"
+#include "../Version.h"
 #include <cstdio>
 #include <cstring>
 
@@ -218,6 +219,16 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
 
     auto pill = pillFor(link, cost);
     renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill.label, pill.color);
+
+    // Firmware release version — a discreet footer just below the status pill
+    // (which lands at y=425); kFontMicro/Font2 keeps it unobtrusive. The y=448
+    // baseline is provisional: confirm on-device it clears the pill and bezel.
+    char ver[24];
+    snprintf(ver, sizeof(ver), "v%s", kFirmwareVersion);
+    c.setFont(theme::kFontMicro);
+    c.setTextColor(theme::kTextMuted);
+    c.setTextDatum(middle_center);
+    c.drawString(ver, theme::kCenterX, 448);
 }
 
 void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID id, LinkStatus link, const Entrance &anim) {

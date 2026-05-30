@@ -1,4 +1,4 @@
-.PHONY: help build test install pair flash monitor clean
+.PHONY: help build test install pair flash monitor clean bump-patch bump-minor bump-major
 
 help:
 	@echo "Targets:"
@@ -9,6 +9,9 @@ help:
 	@echo "  flash           Flash firmware to a connected M5Stack StopWatch"
 	@echo "  monitor         Open serial monitor on the watch"
 	@echo "  clean           Remove build artifacts"
+	@echo "  bump-patch      Bump firmware release version: patch (0.1.1 -> 0.1.2)"
+	@echo "  bump-minor      Bump firmware release version: minor (0.1.1 -> 0.2.0)"
+	@echo "  bump-major      Bump firmware release version: major (0.1.1 -> 1.0.0)"
 
 build:
 	cd bridge && swift build -c release
@@ -16,6 +19,7 @@ build:
 test:
 	cd bridge && swift test
 	cd firmware && pio test -e native
+	python3 firmware/tools/test_bump_version.py
 
 install: build
 	./bridge/.build/release/stopwatch-bridge install
@@ -33,3 +37,12 @@ monitor:
 clean:
 	cd bridge && swift package clean
 	cd firmware && pio run -t clean
+
+bump-patch:
+	python3 firmware/tools/bump_version.py patch
+
+bump-minor:
+	python3 firmware/tools/bump_version.py minor
+
+bump-major:
+	python3 firmware/tools/bump_version.py major
