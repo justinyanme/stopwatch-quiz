@@ -118,6 +118,19 @@ extension NormalizedCost {
     }
 }
 
+extension NormalizedUsageSpend {
+    /// Round-number fixture for byte-exact cross-side assertions.
+    static var openRouterFixture: NormalizedUsageSpend {
+        var cost = [Double](repeating: 0, count: 30); cost[28] = 50.0; cost[29] = 100.0
+        var tok  = [UInt64](repeating: 0, count: 30);  tok[28] = 500_000; tok[29] = 1_000_000
+        return .init(capturedAt: Date(timeIntervalSince1970: 1_748_455_822), flags: [], providers: [
+            .init(kind: .openrouter, status: .ok, currencyCode: "USD", currencyDecimals: 2,
+                  todayCost: 100.0, monthCost: 150.0, todayTokens: 1_000_000, monthTokens: 1_500_000,
+                  todayRequests: 1240, monthRequests: 9000, costHistory: cost, tokenHistory: tok)
+        ])
+    }
+}
+
 extension NormalizedBalance {
     /// Round-number fixture for byte-exact encoder assertions.
     static var balanceFixtureTwo: NormalizedBalance {

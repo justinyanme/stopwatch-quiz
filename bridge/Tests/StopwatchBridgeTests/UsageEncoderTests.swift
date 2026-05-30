@@ -41,6 +41,21 @@ import Testing
         #expect(bytes[r+66+29] == 255)
     }
 
+    @Test func writesAndMatchesOpenRouterFixture() throws {
+        let bytes = UsageEncoder.encode(.openRouterFixture)
+        // Regenerate the golden file when intentionally changing the format: REGEN=1.
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("shared/fixtures/usage-openrouter.hex")
+        if ProcessInfo.processInfo.environment["REGEN"] == "1" {
+            let hex = bytes.map { String(format: "%02x", $0) }.joined()
+            try hex.write(to: url, atomically: true, encoding: .utf8)
+        }
+        let expected = try Fixtures.loadHex("usage-openrouter")
+        #expect(bytes == expected)
+    }
+
     @Test func unknownsBecomeSentinels() {
         let p = NormalizedUsageSpend.Provider(
             kind: .openrouter, status: .ok, currencyCode: "USD",

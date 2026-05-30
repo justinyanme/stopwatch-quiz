@@ -1,7 +1,24 @@
 #include <unity.h>
 #include <vector>
+#include <fstream>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
 #include "../../src/UsageCodec.h"
 using namespace stopwatch;
+
+static std::vector<uint8_t> readHexFixture(const char *name) {
+    std::string path = std::string("../shared/fixtures/") + name + ".hex";
+    std::ifstream f(path);
+    if (!f) { char b[256]; snprintf(b, sizeof(b), "missing fixture: %s", path.c_str()); TEST_FAIL_MESSAGE(b); }
+    std::string raw((std::istreambuf_iterator<char>(f)), {});
+    std::string hex;
+    for (char c : raw) if (!isspace((unsigned char)c)) hex.push_back(c);
+    if (hex.size() % 2 != 0) TEST_FAIL_MESSAGE("hex fixture has odd length");
+    std::vector<uint8_t> out;
+    for (size_t i = 0; i < hex.size(); i += 2) { unsigned v = 0; sscanf(hex.c_str()+i, "%2x", &v); out.push_back((uint8_t)v); }
+    return out;
+}
 
 // Builds one 12+96 byte snapshot with a single OpenRouter record by hand.
 static std::vector<uint8_t> buildOne() {
@@ -87,6 +104,30 @@ void test_recordCountOverMaxRejected(void) {
                       (int)decodeUsageSnapshot(b, sizeof(b), u));
 }
 
+void test_openRouterFixtureDecodes(void) {
+    auto bytes = readHexFixture("usage-openrouter");
+    TEST_ASSERT_EQUAL(12 + 96, (int)bytes.size());
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(bytes.data(), bytes.size(), u));
+    const UsageRecord *r = u.find(BalanceKind::OpenRouter);
+    TEST_ASSERT_NOT_NULL(r);
+    TEST_ASSERT_EQUAL_STRING("USD", r->currency);
+    TEST_ASSERT_EQUAL(10000, r->todayCostMinor.value());     // $100.00
+    TEST_ASSERT_EQUAL(15000, r->monthCostMinor.value());     // $150.00
+    TEST_ASSERT_EQUAL(1000000, r->todayTokens.value());
+    TEST_ASSERT_EQUAL(1500000, r->monthTokens.value());
+    TEST_ASSERT_EQUAL(1240, r->todayRequests.value());
+    TEST_ASSERT_EQUAL(9000, r->monthRequests.value());
+    // last day is the max in both arrays → scales to 255-ish; day28 is half.
+    // cost: max=10000 minor, costUnit=ceil(10000/255)=40; day29=(10000+20)/40=250, day28=(5000+20)/40=125
+    TEST_ASSERT_EQUAL(250, r->costHistory[29]);
+    TEST_ASSERT_EQUAL(125, r->costHistory[28]);
+    // tokens: max=1000000, tokenUnit=ceil(1000000/255)=3922; day29=(1000000+1961)/3922=255
+    TEST_ASSERT_EQUAL(255, r->tokenHistory[29]);
+    // reconstructed cost within one unit of true value:
+    TEST_ASSERT_INT_WITHIN(r->costUnit, 10000, (int)r->costHistory[29] * (int)r->costUnit);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_decodesRecord);
@@ -94,5 +135,6 @@ int main(int, char **) {
     RUN_TEST(test_futureMajorRejected);
     RUN_TEST(test_tooShortRejected);
     RUN_TEST(test_recordCountOverMaxRejected);
+    RUN_TEST(test_openRouterFixtureDecodes);
     return UNITY_END();
 }
