@@ -1,6 +1,7 @@
 #include "Balances.h"
 #include "../BalanceFormat.h"
 #include "../Theme.h"
+#include "CurrencyGlyph.h"
 #include <cstdio>
 #include <cstring>
 #include <cctype>
@@ -119,44 +120,6 @@ void balanceNumber(const BalanceRecord &r, char *buf, size_t n) {
     if (r.unlimited)     { snprintf(buf, n, "\xE2\x88\x9E"); return; }
     if (!r.balanceMinor) { snprintf(buf, n, "--"); return; }
     formatBalanceMinor(r.balanceMinor.value(), r.decimals, buf, n);
-}
-
-int currencyGlyphWidth(M5Canvas &c, const char *code) {
-    if (strcmp(code, "USD") == 0) {
-        c.setFont(theme::kFontDollar);
-        return c.textWidth("$");
-    }
-    if (strcmp(code, "CNY") == 0 || strcmp(code, "JPY") == 0) {
-        c.setFont(theme::kFontTitle);
-        return c.textWidth("Y");
-    }
-    c.setFont(theme::kFontTitle);
-    return c.textWidth(code);
-}
-
-// Draws the currency symbol with its right edge at rightX, vertically centered on y.
-// '$' is drawn from Font2. Font4's 0x24 glyph is a '£' (see Theme.h). No bundled font
-// carries '¥', so it is built from the body-font 'Y' plus two horizontal bars. Any other
-// code renders as its ISO text. Returns the pixel width drawn.
-int drawCurrencyGlyph(M5Canvas &c, const char *code, int rightX, int y, uint32_t color) {
-    c.setTextColor(color);
-    c.setTextDatum(middle_right);
-    if (strcmp(code, "USD") == 0) {
-        c.setFont(theme::kFontDollar);
-        c.drawString("$", rightX, y);
-        return c.textWidth("$");
-    }
-    if (strcmp(code, "CNY") == 0 || strcmp(code, "JPY") == 0) {
-        c.setFont(theme::kFontTitle);
-        int w = c.textWidth("Y");
-        c.drawString("Y", rightX, y);
-        c.fillRect(rightX - w, y - 1, w, 2, color);
-        c.fillRect(rightX - w, y + 5, w, 2, color);
-        return w;
-    }
-    c.setFont(theme::kFontTitle);
-    c.drawString(code, rightX, y);
-    return c.textWidth(code);
 }
 
 void drawHeader(M5Canvas &c, const BalanceSnapshot &bal) {

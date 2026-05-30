@@ -2,6 +2,7 @@
 #include "../BalanceFormat.h"
 #include "../CostFormat.h"
 #include "../Theme.h"
+#include "CurrencyGlyph.h"
 #include <cstdio>
 #include <cstring>
 
@@ -40,6 +41,58 @@ const char *providerLabel(BalanceKind k) {
     }
 }
 
+void drawCenteredAmount(M5Canvas &c, const char *amount, const char *currency,
+                        bool showCurrency, int centerX, int y, uint32_t color) {
+    c.setFont(theme::kFontHero);
+    int amountW = c.textWidth(amount);
+    int glyphW = showCurrency ? currencyGlyphWidth(c, currency) : 0;
+    int gap = glyphW > 0 ? 8 : 0;
+    int amountRight = centerX + (amountW + gap + glyphW) / 2;
+
+    if (glyphW > 0) {
+        drawCurrencyGlyph(c, currency, amountRight - amountW - gap, y, color);
+    }
+
+    c.setTextDatum(middle_right);
+    c.setFont(theme::kFontHero);
+    c.setTextColor(color);
+    c.drawString(amount, amountRight, y);
+    c.setTextDatum(middle_center);
+}
+
+void drawUsageTotalLine(M5Canvas &c, const char *amount, const char *currency,
+                        const char *tokens, int centerX, int y) {
+    const char *prefix = "30d ";
+    char suffix[24];
+    snprintf(suffix, sizeof(suffix), " \xC2\xB7 %s tok", tokens);
+
+    c.setFont(theme::kFontBody);
+    int prefixW = c.textWidth(prefix);
+    int amountW = c.textWidth(amount);
+    int suffixW = c.textWidth(suffix);
+    int glyphW = currencyGlyphWidth(c, currency);
+    int gap = glyphW > 0 ? 3 : 0;
+    int x = centerX - (prefixW + glyphW + gap + amountW + suffixW) / 2;
+
+    c.setTextDatum(middle_left);
+    c.setFont(theme::kFontBody);
+    c.setTextColor(theme::kTextMuted);
+    c.drawString(prefix, x, y);
+    x += prefixW;
+
+    if (glyphW > 0) {
+        drawCurrencyGlyph(c, currency, x + glyphW, y, theme::kTextMuted);
+        x += glyphW + gap;
+    }
+
+    c.setTextDatum(middle_left);
+    c.setFont(theme::kFontBody);
+    c.setTextColor(theme::kTextMuted);
+    c.drawString(amount, x, y);
+    c.drawString(suffix, x + amountW, y);
+    c.setTextDatum(middle_center);
+}
+
 }  // namespace
 
 void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
@@ -61,9 +114,8 @@ void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
     if (bal.unlimited)         snprintf(num, sizeof(num), "\xE2\x88\x9E");
     else if (bal.balanceMinor) formatBalanceMinor(bal.balanceMinor.value(), bal.decimals, num, sizeof(num));
     else                       snprintf(num, sizeof(num), "--");
-    c.setFont(theme::kFontHero);
-    c.setTextColor(color);
-    c.drawString(num, theme::kCenterX, theme::kCenterY - 44);
+    drawCenteredAmount(c, num, bal.currency, bal.balanceMinor.has_value() && !bal.unlimited,
+                       theme::kCenterX, theme::kCenterY - 44, color);
     c.setFont(theme::kFontBody);
     c.setTextColor(theme::kTextMuted);
     c.drawString("balance", theme::kCenterX, theme::kCenterY - 4);
@@ -73,10 +125,8 @@ void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
         if (usage->monthCostMinor) {
             char mo[16]; formatBalanceMinor(usage->monthCostMinor.value(), usage->decimals, mo, sizeof(mo));
             char tk[16]; humanizeTokens(usage->monthTokens.value_or(0), tk, sizeof(tk));
-            char line[40]; snprintf(line, sizeof(line), "30d %s \xC2\xB7 %s tok", mo, tk);
-            c.setFont(theme::kFontBody);
-            c.setTextColor(theme::kTextMuted);
-            c.drawString(line, theme::kCenterX, theme::kCenterY + 28);
+            const char *currency = usage->currency[0] ? usage->currency : bal.currency;
+            drawUsageTotalLine(c, mo, currency, tk, theme::kCenterX, theme::kCenterY + 28);
         }
 
         // Chart: cost or tokens, each scaled to its own max.

@@ -4,9 +4,17 @@
 
 namespace stopwatch {
 
+CurrencyGlyphKind currencyGlyphKind(const char *code) {
+    if (!code) return CurrencyGlyphKind::Text;
+    if (strcmp(code, "USD") == 0) return CurrencyGlyphKind::Dollar;
+    if (strcmp(code, "CNY") == 0 || strcmp(code, "JPY") == 0) return CurrencyGlyphKind::Yen;
+    return CurrencyGlyphKind::Text;
+}
+
 const char *currencySymbol(const char *code) {
-    if (strcmp(code, "USD") == 0) return "$";
-    if (strcmp(code, "CNY") == 0 || strcmp(code, "JPY") == 0) return "\xC2\xA5";  // ¥
+    if (!code) return "";
+    if (currencyGlyphKind(code) == CurrencyGlyphKind::Dollar) return "$";
+    if (currencyGlyphKind(code) == CurrencyGlyphKind::Yen) return "\xC2\xA5";      // ¥
     if (strcmp(code, "GBP") == 0) return "\xC2\xA3";                              // £
     return code;   // unknown → show the raw code (e.g. "EUR")
 }

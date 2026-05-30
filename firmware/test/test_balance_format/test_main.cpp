@@ -11,6 +11,14 @@ void test_symbols(void) {
     TEST_ASSERT_EQUAL_STRING("", currencySymbol(""));
 }
 
+void test_currencyGlyphKind(void) {
+    TEST_ASSERT_EQUAL((int)CurrencyGlyphKind::Dollar, (int)currencyGlyphKind("USD"));
+    TEST_ASSERT_EQUAL((int)CurrencyGlyphKind::Yen, (int)currencyGlyphKind("CNY"));
+    TEST_ASSERT_EQUAL((int)CurrencyGlyphKind::Yen, (int)currencyGlyphKind("JPY"));
+    TEST_ASSERT_EQUAL((int)CurrencyGlyphKind::Text, (int)currencyGlyphKind("EUR"));
+    TEST_ASSERT_EQUAL((int)CurrencyGlyphKind::Text, (int)currencyGlyphKind(""));
+}
+
 void test_formatMinor(void) {
     char buf[16];
     formatBalanceMinor(4210, 2, buf, sizeof(buf)); TEST_ASSERT_EQUAL_STRING("42.10", buf);
@@ -22,6 +30,7 @@ void test_formatMinor(void) {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_symbols);
+    RUN_TEST(test_currencyGlyphKind);
     RUN_TEST(test_formatMinor);
     return UNITY_END();
 }
