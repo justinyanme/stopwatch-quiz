@@ -19,6 +19,8 @@
 #include "TouchScroll.h"
 #include "Anim.h"
 #include "Views/Balances.h"
+#include "Views/ProviderUsage.h"
+#include "UsageCodec.h"
 
 stopwatch::App         g_app;
 stopwatch::BleClient   g_ble;
@@ -32,6 +34,8 @@ stopwatch::BalanceSnapshot g_balance;
 bool                       g_balanceLoaded = false;
 stopwatch::TouchScroll     g_balScroll;
 stopwatch::Entrance        g_entrance;
+stopwatch::UsageSnapshot   g_usage;
+bool                       g_usageLoaded = false;
 
 static void drawCurrentView() {
     using namespace stopwatch;
@@ -45,8 +49,16 @@ static void drawCurrentView() {
         case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link, g_entrance); break;
         case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link, g_entrance); break;
         case ViewId::Balances: {
-            int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
-            g_balScroll.setBounds(contentH, views::balancesViewportHeight());
+            if (g_app.inBalanceDetail() &&
+                g_app.balanceDetailIndex() < g_balance.recordCount) {
+                const auto &bal = g_balance.records[g_app.balanceDetailIndex()];
+                const UsageRecord *u = g_usage.find(bal.kind);
+                views::drawProviderUsage(g_renderer, bal, u, g_app.usageMetric(),
+                                         g_app.linkStatus(), g_entrance);
+            } else {
+                int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
+                g_balScroll.setBounds(contentH, views::balancesViewportHeight());
+            }
             break;
         }
     }
@@ -157,6 +169,25 @@ static bool fetchBalancesAndApply() {
     return true;
 }
 
+static bool fetchUsageAndApply() {
+    uint8_t buf[stopwatch::kUsageSnapshotMaxSize];
+    size_t len = 0;
+    if (g_ble.fetchUsage(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
+    stopwatch::UsageSnapshot us;
+    if (stopwatch::decodeUsageSnapshot(buf, len, us) != stopwatch::UsageDecodeResult::Ok) return false;
+    g_usage = us;
+    g_store.save("usage", buf, len);
+    g_usageLoaded = true;
+    return true;
+}
+
+// On first entry to a balance detail this wake-session, pull usage once.
+static void ensureUsageLoaded() {
+    if (g_usageLoaded) return;
+    renderRefreshingOverlay("Loading usage\xE2\x80\xA6");
+    fetchUsageAndApply();
+}
+
 // On first entry to the Balances screen this wake-session, pull balances once.
 static void ensureBalanceLoaded() {
     using namespace stopwatch;
@@ -182,6 +213,7 @@ static void enterSleepAndRefreshOnWake() {
     g_app.noteWakeFromSleep();
     g_costLoaded = false;
     g_balanceLoaded = false;
+    g_usageLoaded = false;
     g_balScroll.reset();
     applyRefreshRequest("Refreshing\xE2\x80\xA6");
     ensureCostLoaded();
@@ -256,6 +288,11 @@ void setup() {
     if (g_store.load("bal", bbuf, sizeof(bbuf), blen)) {
         stopwatch::decodeBalanceSnapshot(bbuf, blen, g_balance);
     }
+    uint8_t ubuf[stopwatch::kUsageSnapshotMaxSize];
+    size_t ulen = 0;
+    if (g_store.load("usage", ubuf, sizeof(ubuf), ulen)) {
+        stopwatch::decodeUsageSnapshot(ubuf, ulen, g_usage);
+    }
     renderCurrent();
     Serial.println("[stopwatch-fw] first render done; starting BLE fetch");
 
@@ -281,7 +318,13 @@ void loop() {
             if (!isBalanceView(g_app.currentView())) g_balScroll.reset();
             ensureCostLoaded();
             ensureBalanceLoaded();
-            startViewAnim();
+            if (g_app.inBalanceDetail()) {
+                ensureUsageLoaded();
+                g_entrance.start(millis(), stopwatch::motion::kSpendEntranceMs);
+                renderCurrent();
+            } else {
+                startViewAnim();
+            }
         }
     }
 
@@ -296,17 +339,32 @@ void loop() {
     if (isBalanceView(g_app.currentView())) {
         M5.update();
         auto t = M5.Touch.getDetail();
-        if (t.isPressed()) {
-            g_power.noteActivity();
-            if (t.wasPressed()) g_balScroll.onPress(t.y);
-            else                g_balScroll.onMove(t.y);
-            renderCurrent();
-        } else if (t.wasReleased()) {
-            g_balScroll.onRelease();
-        }
-        if (!g_balScroll.isResting()) {
-            g_balScroll.tick(20);
-            renderCurrent();
+        if (g_app.inBalanceDetail()) {
+            // In detail: ignore touch; only buttons act. Entrance animates via the block below.
+        } else {
+            if (t.isPressed()) {
+                g_power.noteActivity();
+                if (t.wasPressed()) g_balScroll.onPress(t.y);
+                else                g_balScroll.onMove(t.y);
+                renderCurrent();
+            } else if (t.wasReleased()) {
+                bool wasResting = g_balScroll.isResting();
+                g_balScroll.onRelease();
+                // A clean tap (no fling/drag momentum) selects the row under the finger.
+                if (wasResting) {
+                    int idx = views::balanceRowAtY(t.y, g_balScroll.offset(), g_balance.recordCount);
+                    if (idx >= 0) {
+                        g_app.enterBalanceDetail(idx);
+                        ensureUsageLoaded();
+                        g_entrance.start(millis(), stopwatch::motion::kSpendEntranceMs);
+                        renderCurrent();
+                    }
+                }
+            }
+            if (!g_balScroll.isResting()) {
+                g_balScroll.tick(20);
+                renderCurrent();
+            }
         }
     }
 
