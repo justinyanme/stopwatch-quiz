@@ -15,6 +15,8 @@ public struct ProviderConfig: Codable, Equatable, Sendable {
     public var pollSeconds: Int?
     public var lowThreshold: Double?
     public var scale: Double?         // raw balance/usage ÷ this = currency amount (e.g. 500000 for AiHubMix quota→USD)
+    public var usageKind: String?          // "openrouter" etc.; nil = no usage chart
+    public var usageCredentialID: String?  // KeyStore id for the management key / token / cookie
 
     public struct Resolved: Equatable, Sendable {
         public var id: String, name: String
@@ -24,6 +26,8 @@ public struct ProviderConfig: Codable, Equatable, Sendable {
         public var currency: String, currencyDecimals: Int
         public var pollSeconds: Int, lowThreshold: Double?
         public var scale: Double
+        public var usageKind: BalanceKind?
+        public var usageCredentialID: String?
     }
 
     public func resolved() -> Resolved {
@@ -39,7 +43,9 @@ public struct ProviderConfig: Codable, Equatable, Sendable {
             currencyDecimals: currencyDecimals ?? 2,
             pollSeconds: pollSeconds ?? 900,
             lowThreshold: lowThreshold,
-            scale: scale ?? 1
+            scale: scale ?? 1,
+            usageKind: usageKind.map { BalanceKind(fromString: $0) },
+            usageCredentialID: usageCredentialID
         )
     }
 

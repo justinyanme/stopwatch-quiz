@@ -56,6 +56,16 @@ import Testing
         #expect(bytes == expected)
     }
 
+    @Test func cacheKeepsLastGoodOnFailure() {
+        var cache = UsageCache()
+        let good = cache.recordSuccess(.openRouterFixture)
+        #expect(good[3] == 0)
+        let failed = cache.recordFailure(capturedAt: Date(timeIntervalSince1970: 1_748_500_000))
+        #expect(Array(failed[Protocol.usageHeaderSize...]) == Array(good[Protocol.usageHeaderSize...]))
+        #expect((failed[3] & UsageFlags.stale.rawValue) != 0)
+        #expect((failed[3] & UsageFlags.bridgeError.rawValue) != 0)
+    }
+
     @Test func unknownsBecomeSentinels() {
         let p = NormalizedUsageSpend.Provider(
             kind: .openrouter, status: .ok, currencyCode: "USD",
