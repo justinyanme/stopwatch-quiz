@@ -1,4 +1,6 @@
 .superpowers/
+.agents/
+skills-lock.json
 .DS_Store
 build/
 .pio/

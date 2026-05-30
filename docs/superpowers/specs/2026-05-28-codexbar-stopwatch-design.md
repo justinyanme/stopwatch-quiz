@@ -3,7 +3,6 @@
 **Status:** Approved
 **Date:** 2026-05-28
 **Owner:** Justin Yan
-**Implementation repo:** `/Users/justinyan/Documents/JProj/stopwatch-quiz`
 
 ## 1. Summary
 

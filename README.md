@@ -1,6 +1,8 @@
 # CodexBar StopWatch
 
-Brings CodexBar usage indicators for Codex / Claude Code / Gemini onto an M5Stack StopWatch over Bluetooth LE. No agent credentials live on the device.
+Brings [CodexBar](https://codexbar.app/) usage indicators for Codex / Claude Code / Gemini onto an M5Stack StopWatch over Bluetooth LE. No agent credentials live on the device.
+
+> **What's CodexBar?** [CodexBar](https://codexbar.app/) is a macOS menu-bar app that tracks how close you are to your Codex / Claude Code / Gemini usage limits. This project reads CodexBar's data locally on your Mac (via its `codexbar serve` localhost API) and relays a compact snapshot to the watch over Bluetooth LE — so a glance at your wrist replaces opening the menu bar.
 
 ## What you get
 
@@ -12,15 +14,15 @@ Brings CodexBar usage indicators for Codex / Claude Code / Gemini onto an M5Stac
 ## Requirements
 
 - macOS 14 (Sonoma) or newer.
-- CodexBar.app (or the `codexbar` CLI) installed and signed into Codex / Claude Code / Gemini.
+- [CodexBar](https://codexbar.app/) — the app or its `codexbar` CLI — installed and signed into Codex / Claude Code / Gemini. This is the data source the bridge reads from.
 - Swift 6.2+ (Xcode 16.2+).
 - PlatformIO Core (`pip install platformio` or `brew install platformio`).
-- An M5Stack StopWatch + USB-C cable for flashing.
+- An [M5Stack StopWatch](https://docs.m5stack.com/en/core/StopWatch) + USB-C cable for flashing.
 
 ## Install
 
 ```bash
-git clone <this repo>
+git clone https://github.com/justinyanme/stopwatch-quiz.git
 cd stopwatch-quiz
 make build              # builds the Swift bridge in release mode
 ./scripts/install-bridge.sh   # generates random port, writes config, registers a launchd agent
@@ -109,8 +111,7 @@ Providers without a key-queryable balance API can't be shown — e.g. MiniMax pa
 - `firmware/` — PlatformIO project, the watch firmware.
 - `shared/` — wire-protocol single source of truth (UUIDs, byte layout, test fixtures).
 - `scripts/` — install/flash convenience wrappers.
-- `docs/superpowers/specs/` — design doc.
-- `docs/superpowers/plans/` — implementation plan.
+- `docs/superpowers/specs/` — design docs.
 
 ## Tests
 
@@ -128,3 +129,7 @@ launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/dev.stopwatch.bridg
 rm "$HOME/Library/LaunchAgents/dev.stopwatch.bridge.plist"
 rm -rf "$HOME/Library/Application Support/stopwatch-bridge"
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
