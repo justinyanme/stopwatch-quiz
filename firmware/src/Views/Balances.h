@@ -9,4 +9,7 @@ namespace stopwatch::views {
 /// total content height in pixels so the caller can set scroll bounds.
 int drawBalances(Renderer &renderer, const BalanceSnapshot &bal, LinkStatus link, int scrollOffset);
 
+/// Visible height of the ledger row viewport used by drawBalances().
+int balancesViewportHeight();
+
 }  // namespace stopwatch::views
