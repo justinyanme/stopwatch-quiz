@@ -15,13 +15,24 @@ The three usage-capable providers expose very different surfaces. This unevennes
 | Provider | Balance (today) | Usage time-series | Auth needed | Confidence |
 |---|---|---|---|---|
 | **OpenRouter** | `GET /api/v1/credits` | `GET /api/v1/activity` — daily × model: cost, requests, prompt/completion/reasoning tokens, 30-day window | **management key** (not the inference key) | Documented, reliable |
-| **AIHubMix** | `GET /api/user/self` | `GET /api/data/self?start_timestamp&end_timestamp` (per-hour × model: cost=quota/500000, count, token_used), ≤1-month span — undocumented `new-api` endpoint | **system access token** (`fd***`, not the model key) | Undocumented; verify in DevTools first |
+| **AIHubMix** | `GET /api/user/self` | none verified for per-account history; see §2.1 | **system access token** (`fd***`, not the model key) | Balance-only after spike |
 | **DeepSeek** | `GET /user/balance` | none. Dashboard chart at platform.deepseek.com/usage is browser-only; the only official export is a manual monthly CSV download | session **cookie** replay of the dashboard's internal XHR | Fragile; verify in DevTools; cookie expires |
 | Others (Groq, generic) | configured | none | n/a | balance-only |
 
 Confirmed against provider docs on 2026-05-30: OpenRouter analytics docs; DeepSeek API reference lists only Get User Balance under "Others"; AIHubMix runs the open-source `new-api` stack (QuantumNous/new-api) whose `/api/data/self` and `/api/log/self/stat` endpoints serve the dashboard charts.
 
 **DevTools spike (precedes Phase 2/3):** open each dashboard logged-in with the Network tab, identify the exact JSON request that populates the usage chart (URL, method, headers, auth, CSRF), confirm it is replayable with a captured cookie/token. If DeepSeek guards it with a short-lived CSRF token that can't be replayed headlessly, DeepSeek stays balance-only.
+
+### 2.1 Verified endpoints
+
+**AIHubMix, verified 2026-05-30:** AIHubMix's documented system access token works headlessly for account/balance data but not for per-account usage history.
+
+- `GET https://aihubmix.com/api/user/self` and `GET https://api.aihubmix.com/api/user/self` return account data with `Authorization: <system-access-token>`.
+- The expected stock `new-api` endpoints `GET /api/data/self?start_timestamp=&end_timestamp=` and `GET /api/log/self/stat?...` return `404 page not found` on both `aihubmix.com` and `api.aihubmix.com`.
+- The live frontend bundle defines `GET /call/mdl_usage_dtl?day=N[&end_date=YYYY-MM-DD]` and `GET /call/mdl_usage_cnt?day=N[&end_date=YYYY-MM-DD]`; both replay without authentication and return global model ranking rows, not this account's usage. Detail rows have `date`, `model`, `token_used`, and `call_count`; there is no cost/quota field.
+- Personal log endpoints such as `GET /call/log/self`, `GET /call/log/usage`, and `GET /call/log` return `401` with raw access-token auth, bearer access-token auth, and no auth. They appear to require a browser login/session rather than the system access token.
+
+Decision: AIHubMix remains **balance-only** for this feature. Skip the AIHubMix `UsageClient` task unless AIHubMix later exposes a replayable per-account history endpoint via the system access token.
 
 ## 3. Interaction model
 
@@ -77,7 +88,7 @@ This is **additive**: the existing 584-byte Balance snapshot (`kBalanceSnapshotM
 ## 6. Build order
 
 1. **OpenRouter, end-to-end.** Full vertical slice: bridge `OpenRouterUsage` client → `BalanceUsageEncoder` → new wire payload + characteristic → firmware codec → detail view + chart → tap/back/toggle nav. Proves the entire pipeline on the clean, documented API.
-2. **DevTools spike**, then **AIHubMix** `UsageClient` behind the same interface.
+2. **DevTools spike**, then **AIHubMix** `UsageClient` behind the same interface. The 2026-05-30 spike did not find replayable per-account history, so AIHubMix is currently balance-only.
 3. **DeepSeek** cookie client, with graceful balance-only fallback.
 4. **Balance-only detail** polish for all remaining providers.
 
@@ -91,4 +102,4 @@ This is **additive**: the existing 584-byte Balance snapshot (`kBalanceSnapshotM
 
 ## 8. Open questions
 
-None blocking. The AIHubMix/DeepSeek endpoint paths and auth are confirmed-by-spike in Phase 2/3; OpenRouter (Phase 1) is fully specified and unblocked.
+DeepSeek's dashboard XHR remains spike-gated. AIHubMix was checked on 2026-05-30 and stays balance-only until a replayable per-account history endpoint exists.
