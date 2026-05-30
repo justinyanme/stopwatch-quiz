@@ -33,6 +33,8 @@ bool                    g_costLoaded = false;
 stopwatch::BalanceSnapshot g_balance;
 bool                       g_balanceLoaded = false;
 stopwatch::TouchScroll     g_balScroll;
+static int  g_balPressY = 0;     // finger Y at touch-down, for tap-vs-drag detection
+static bool g_balMoved  = false; // set once the finger moves beyond the tap threshold
 stopwatch::Entrance        g_entrance;
 stopwatch::UsageSnapshot   g_usage;
 bool                       g_usageLoaded = false;
@@ -344,14 +346,19 @@ void loop() {
         } else {
             if (t.isPressed()) {
                 g_power.noteActivity();
-                if (t.wasPressed()) g_balScroll.onPress(t.y);
-                else                g_balScroll.onMove(t.y);
+                if (t.wasPressed()) {
+                    g_balScroll.onPress(t.y);
+                    g_balPressY = t.y;
+                    g_balMoved  = false;
+                } else {
+                    g_balScroll.onMove(t.y);
+                    if (abs(t.y - g_balPressY) > 8) g_balMoved = true;
+                }
                 renderCurrent();
             } else if (t.wasReleased()) {
-                bool wasResting = g_balScroll.isResting();
                 g_balScroll.onRelease();
-                // A clean tap (no fling/drag momentum) selects the row under the finger.
-                if (wasResting) {
+                // A tap (finger didn't move beyond threshold) selects the row under the finger.
+                if (!g_balMoved) {
                     int idx = views::balanceRowAtY(t.y, g_balScroll.offset(), g_balance.recordCount);
                     if (idx >= 0) {
                         g_app.enterBalanceDetail(idx);
