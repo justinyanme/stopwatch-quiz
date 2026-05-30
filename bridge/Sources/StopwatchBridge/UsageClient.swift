@@ -76,7 +76,7 @@ public actor UsageClient {
         fmt.calendar = cal; fmt.timeZone = cal.timeZone; fmt.dateFormat = "yyyy-MM-dd"
 
         for row in rows {
-            guard let dateStr = row["date"] as? String, let d = fmt.date(from: dateStr) else { continue }
+            guard let dateStr = row["date"] as? String, let d = activityDate(dateStr, formatter: fmt) else { continue }
             let dayStart = cal.startOfDay(for: d)
             guard let diff = cal.dateComponents([.day], from: dayStart, to: today).day else { continue }
             let idx = 29 - diff
@@ -100,6 +100,11 @@ public actor UsageClient {
         case let s as String:   return Double(s) ?? 0
         default:                return 0
         }
+    }
+
+    private func activityDate(_ s: String, formatter: DateFormatter) -> Date? {
+        guard s.count >= 10 else { return nil }
+        return formatter.date(from: String(s.prefix(10)))
     }
 
     /// Safe Double→UInt64: clamps negatives, NaN, and infinities to 0 (a bare

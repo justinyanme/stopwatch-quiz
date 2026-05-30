@@ -35,6 +35,25 @@ extension NetworkStubTests.UsageClientTests {
         #expect(p.monthCost == 6.0)                 // sum of all days
     }
 
+    @Test func openRouterAcceptsTimestampedDailyRows() async {
+        let body = #"""
+        {"data":[
+          {"date":"2025-05-28 00:00:00","usage":1.25,"requests":3,"prompt_tokens":10,"completion_tokens":20,"reasoning_tokens":5}
+        ]}
+        """#
+        BalanceStubURLProtocol.routes = ["openrouter.ai": .init(status: 200, body: Data(body.utf8))]
+        defer { BalanceStubURLProtocol.routes = [:] }
+        let client = UsageClient(keyStore: FakeKeyStore(["openrouter-mgmt": "sk-mgmt"]), session: stubSession())
+        let now = ISO8601DateFormatter().date(from: "2025-05-28T12:00:00Z")!
+        let p = await client.fetchAll([.init(kind: .openrouter, credentialID: "openrouter-mgmt")], now: now).providers[0]
+
+        #expect(p.status == .ok)
+        #expect(p.todayCost == 1.25)
+        #expect(p.todayRequests == 3)
+        #expect(p.todayTokens == 35)
+        #expect(p.costHistory[29] == 1.25)
+    }
+
     @Test func missingManagementKeyIsAuthError() async {
         let client = UsageClient(keyStore: FakeKeyStore(), session: stubSession())
         let snap = await client.fetchAll([.init(kind: .openrouter, credentialID: "openrouter-mgmt")],
