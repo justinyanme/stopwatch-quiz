@@ -103,19 +103,36 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link, con
         c.drawString("--", theme::kCenterX, theme::kCenterY + 8);
     }
 
-    // Bottom strip: live session percentages, in provider colors. Same arrangement as rings (outer→inner).
-    c.setFont(theme::kFontBody);
-    int by = theme::kCenterY + theme::kRingOuterR - 41;
-    auto drawMetric = [&](int x, const ProviderSlot *p, uint32_t color) {
-        char buf[8];
-        if (p && p->sessionPct.has_value()) snprintf(buf, sizeof(buf), "%u%%", p->sessionPct.value());
-        else                                snprintf(buf, sizeof(buf), "--");
-        c.setTextColor(color);
-        c.drawString(buf, x, by);
+    // Bottom strip: live session percentages in provider colors, set as a tight
+    // centered legend in the gap between the claude (middle) and codex (outer)
+    // rings. kFontMicro on purpose: three body-size readouts can't clear the ring
+    // arcs here, and this is a breakdown of the hero metric, not the headline.
+    // Order matches the rings (outer→inner): codex, claude, gemini.
+    c.setFont(theme::kFontMicro);
+    c.setTextDatum(middle_center);
+    const int by = theme::kCenterY + theme::kRingMiddleR + 12;  // 12px out from the middle ring, clear of both arcs
+    struct Metric { const ProviderSlot *p; uint32_t color; };
+    const Metric metrics[] = {
+        { codex,  theme::kCodex  },
+        { claude, theme::kClaude },
+        { gemini, theme::kGemini },
     };
-    drawMetric(theme::kCenterX - 70, codex,  theme::kCodex);
-    drawMetric(theme::kCenterX,      claude, theme::kClaude);
-    drawMetric(theme::kCenterX + 70, gemini, theme::kGemini);
+    constexpr int kGap = 14;
+    char bufs[3][8];
+    int widths[3], total = 0;
+    for (int i = 0; i < 3; ++i) {
+        const auto *p = metrics[i].p;
+        if (p && p->sessionPct.has_value()) snprintf(bufs[i], sizeof(bufs[i]), "%u%%", p->sessionPct.value());
+        else                                snprintf(bufs[i], sizeof(bufs[i]), "--");
+        widths[i] = c.textWidth(bufs[i]);
+        total += widths[i] + (i ? kGap : 0);
+    }
+    int x = theme::kCenterX - total / 2;
+    for (int i = 0; i < 3; ++i) {
+        c.setTextColor(metrics[i].color);
+        c.drawString(bufs[i], x + widths[i] / 2, by);
+        x += widths[i] + kGap;
+    }
 
     auto pill = pillFor(link, snap);
     renderer.drawPill(theme::kCenterX,
