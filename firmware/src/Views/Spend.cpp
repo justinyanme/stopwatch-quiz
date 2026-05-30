@@ -27,14 +27,19 @@ Pill pillFor(LinkStatus link, const CostSnapshot &cost) {
 }
 
 // Vertical-bar sparkline. `values` length `count`; scaled to `maxVal` (>=1).
+// `animElapsedMs` drives the entrance: bars rise from the baseline left→right
+// (Entrance::kSettled once idle → every bar at full height).
 void drawSparkline(M5Canvas &c, int x, int y, int w, int h,
-                   const int *values, int count, int maxVal, uint32_t color) {
+                   const int *values, int count, int maxVal, uint32_t color,
+                   uint32_t animElapsedMs) {
     if (count <= 0 || maxVal < 1) return;
     int barW = w / count;
     if (barW < 1) barW = 1;
     for (int i = 0; i < count; ++i) {
         int bh = (int)((long)values[i] * h / maxVal);
         if (values[i] > 0 && bh < 2) bh = 2;  // floor so a nonzero day is visible
+        bh = (int)(bh * motion::barRise(animElapsedMs, i, count) + 0.5f);  // grow from baseline
+        if (bh <= 0) continue;
         c.fillRect(x + i * barW, y + (h - bh), barW > 1 ? barW - 1 : 1, bh, color);
     }
 }
@@ -123,10 +128,11 @@ void drawMoneyRight(M5Canvas &c, uint32_t cents, int rightX, int y,
 }
 }  // namespace
 
-void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus link) {
+void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus link, const Entrance &anim) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
     c.setTextDatum(middle_center);
+    uint32_t e = anim.elapsed();
 
     // Title
     c.setFont(theme::kFontTitle);
@@ -150,8 +156,9 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     }
 
     if (any) {
-        // Hero: combined spend today — the one number you glance for.
-        drawMoneyHero(c, todayCents, theme::kCenterX, 118, theme::kTextPrimary);
+        // Hero: combined spend today — the one number you glance for, counting up.
+        uint32_t heroCents = (uint32_t)(todayCents * motion::countUp(e) + 0.5f);
+        drawMoneyHero(c, heroCents, theme::kCenterX, 118, theme::kTextPrimary);
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
         c.drawString("today", theme::kCenterX, 154);
@@ -195,7 +202,7 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
         // screens read alike; taller too. At most 2 ledger rows (codex+claude),
         // so the chart sits high enough to grow without nearing pill or ring.
         drawSparkline(c, theme::kCenterX - 105, ctxY + 22, 210, 46,
-                      combined, kCostHistoryDays, maxCombined, theme::kTextMuted);
+                      combined, kCostHistoryDays, maxCombined, theme::kTextMuted, e);
     } else {
         c.setFont(theme::kFontUnit);
         c.setTextColor(theme::kTextMuted);
@@ -206,11 +213,12 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
     renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill.label, pill.color);
 }
 
-void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID id, LinkStatus link) {
+void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID id, LinkStatus link, const Entrance &anim) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
     c.setTextDatum(middle_center);
     uint32_t color = theme::colorFor(id);
+    uint32_t e = anim.elapsed();
 
     const CostRecord *r = cost.find(id);
 
@@ -244,7 +252,8 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
         // note — a missing dollar should read as "not priced", not "no spend" — and
         // we still surface today's token activity so the screen isn't a dead end.
         if (r->todayCents) {
-            drawMoneyHero(c, r->todayCents.value(), theme::kCenterX, theme::kCenterY - 44, color);
+            uint32_t heroCents = (uint32_t)(r->todayCents.value() * motion::countUp(e) + 0.5f);
+            drawMoneyHero(c, heroCents, theme::kCenterX, theme::kCenterY - 44, color);
             c.setFont(theme::kFontBody);
             c.setTextColor(theme::kTextMuted);
             c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
@@ -285,7 +294,7 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
         // don't read as thin spikes. Bottom corners stay ~r173 from center —
         // clear of the ring (inner edge ~r192) even when the status pill shows.
         drawSparkline(c, theme::kCenterX - 105, theme::kCenterY + 88, 210, 52,
-                      hist, kCostHistoryDays, maxV, color);
+                      hist, kCostHistoryDays, maxV, color, e);
     }
 
     auto pill = pillFor(link, cost);

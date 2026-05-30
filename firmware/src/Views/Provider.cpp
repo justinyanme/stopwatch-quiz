@@ -63,7 +63,7 @@ Pill pillFor(LinkStatus link, const Snapshot &snap) {
 }
 }  // namespace
 
-void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkStatus link) {
+void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkStatus link, const Entrance &anim) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
 
@@ -103,10 +103,12 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     int weekRadius = theme::kRingOuterR - theme::kRingStroke * 2 - 4;
     float sessionFrac = (p && p->sessionPct.has_value()) ? p->sessionPct.value() / 100.0f : 0.0f;
     float weekFrac    = (p && p->weekPct.has_value())    ? p->weekPct.value()    / 100.0f : 0.0f;
+    // Outer (session) leads, inner (week) follows — both sweep up on entry.
+    uint32_t e = anim.elapsed();
     renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingOuterR, theme::kRingStroke,
-                      theme::kRingTrack, color,    sessionFrac);
+                      theme::kRingTrack, color,    sessionFrac * motion::ringFill(e, 0));
     renderer.drawRing(theme::kCenterX, theme::kCenterY, weekRadius,         theme::kRingStroke,
-                      theme::kRingTrack, colorDim, weekFrac);
+                      theme::kRingTrack, colorDim, weekFrac    * motion::ringFill(e, 1));
 
     // What the hero number measures, set directly above it. The brand mark now
     // lives in the identity header, so this is the cap-type label on its own.
@@ -117,7 +119,8 @@ void drawProvider(Renderer &renderer, const Snapshot &snap, ProviderID id, LinkS
     if (p && p->sessionPct.has_value()) {
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
         char digits[6];
-        snprintf(digits, sizeof(digits), "%u", p->sessionPct.value());
+        snprintf(digits, sizeof(digits), "%u",
+                 (unsigned)(p->sessionPct.value() * motion::ringFill(e, 0) + 0.5f));
         c.setTextColor(color);
 
         c.setFont(theme::kFontHero);

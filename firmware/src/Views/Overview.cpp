@@ -43,7 +43,7 @@ Pill pillFor(LinkStatus link, const Snapshot &snap) {
 }
 }  // namespace
 
-void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
+void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link, const Entrance &anim) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
 
@@ -51,12 +51,14 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
     const auto *claude = findProvider(snap, ProviderID::Claude);
     const auto *gemini = findProvider(snap, ProviderID::Gemini);
 
+    // Outer→inner cascade: each ring sweeps from 0 up to its live fraction.
+    uint32_t e = anim.elapsed();
     renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingOuterR,  theme::kRingStroke,
-                      theme::kRingTrack, theme::kCodex,  fractionOf(codex));
+                      theme::kRingTrack, theme::kCodex,  fractionOf(codex)  * motion::ringFill(e, 0));
     renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingMiddleR, theme::kRingStroke,
-                      theme::kRingTrack, theme::kClaude, fractionOf(claude));
+                      theme::kRingTrack, theme::kClaude, fractionOf(claude) * motion::ringFill(e, 1));
     renderer.drawRing(theme::kCenterX, theme::kCenterY, theme::kRingInnerR,  theme::kRingStroke,
-                      theme::kRingTrack, theme::kGemini, fractionOf(gemini));
+                      theme::kRingTrack, theme::kGemini, fractionOf(gemini) * motion::ringFill(e, 2));
 
     // Center gravity well — anchors the big metric, separates it from inner ring track.
     c.fillCircle(theme::kCenterX, theme::kCenterY, theme::kRingInnerR - theme::kRingStroke - 6,
@@ -75,7 +77,9 @@ void drawOverview(Renderer &renderer, const Snapshot &snap, LinkStatus link) {
 
         // Font7 (7-segment) lacks '%' — draw digits in Font7, then '%' in Font4 next to them.
         char digits[6];
-        snprintf(digits, sizeof(digits), "%u", worst->sessionPct.value());
+        int domRing = worst->id == ProviderID::Claude ? 1 : (worst->id == ProviderID::Gemini ? 2 : 0);
+        snprintf(digits, sizeof(digits), "%u",
+                 (unsigned)(worst->sessionPct.value() * motion::ringFill(e, domRing) + 0.5f));
         c.setTextColor(theme::colorFor(worst->id));
 
         c.setFont(theme::kFontHero);

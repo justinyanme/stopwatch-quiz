@@ -17,6 +17,7 @@
 #include "BalanceCodec.h"
 #include "BalanceFormat.h"
 #include "TouchScroll.h"
+#include "Anim.h"
 #include "Views/Balances.h"
 
 stopwatch::App         g_app;
@@ -30,18 +31,19 @@ bool                    g_costLoaded = false;
 stopwatch::BalanceSnapshot g_balance;
 bool                       g_balanceLoaded = false;
 stopwatch::TouchScroll     g_balScroll;
+stopwatch::Entrance        g_entrance;
 
 static void drawCurrentView() {
     using namespace stopwatch;
     auto link = g_app.linkStatus();
     switch (g_app.currentView()) {
-        case ViewId::Overview:   views::drawOverview(g_renderer, g_snap, link); break;
-        case ViewId::TotalSpend: views::drawTotalSpend(g_renderer, g_cost, link); break;
-        case ViewId::Codex:      views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link); break;
-        case ViewId::CodexCost:  views::drawProviderCost(g_renderer, g_cost, ProviderID::Codex, link); break;
-        case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link); break;
-        case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link); break;
-        case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link); break;
+        case ViewId::Overview:   views::drawOverview(g_renderer, g_snap, link, g_entrance); break;
+        case ViewId::TotalSpend: views::drawTotalSpend(g_renderer, g_cost, link, g_entrance); break;
+        case ViewId::Codex:      views::drawProvider(g_renderer, g_snap, ProviderID::Codex,  link, g_entrance); break;
+        case ViewId::CodexCost:  views::drawProviderCost(g_renderer, g_cost, ProviderID::Codex, link, g_entrance); break;
+        case ViewId::Claude:     views::drawProvider(g_renderer, g_snap, ProviderID::Claude, link, g_entrance); break;
+        case ViewId::ClaudeCost: views::drawProviderCost(g_renderer, g_cost, ProviderID::Claude, link, g_entrance); break;
+        case ViewId::Gemini:     views::drawProvider(g_renderer, g_snap, ProviderID::Gemini, link, g_entrance); break;
         case ViewId::Balances: {
             int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
             g_balScroll.setBounds(contentH, views::balancesViewportHeight());
@@ -53,6 +55,33 @@ static void drawCurrentView() {
 static void renderCurrent() {
     drawCurrentView();
     g_renderer.present();
+}
+
+// Entrance length per view: ring views charge up outer→inner; spend views grow
+// their chart and count the hero number up; viewless screens (Balances) get none.
+static uint32_t entranceDurationForView(stopwatch::ViewId v) {
+    using namespace stopwatch;
+    switch (v) {
+        case ViewId::Overview:   return motion::ringEntranceMs(3);   // Codex, Claude, Gemini
+        case ViewId::Codex:
+        case ViewId::Claude:
+        case ViewId::Gemini:     return motion::ringEntranceMs(2);   // session + week
+        case ViewId::TotalSpend:
+        case ViewId::CodexCost:
+        case ViewId::ClaudeCost: return motion::kSpendEntranceMs;
+        case ViewId::Balances:   return 0;
+    }
+    return 0;
+}
+
+// Enter the current view: start the entrance if it animates (the first frame
+// draws empty/zeroed), otherwise just paint it. Always renders one frame now;
+// loop() drives the remaining frames while g_entrance is animating.
+static void startViewAnim() {
+    uint32_t dur = entranceDurationForView(g_app.currentView());
+    if (dur > 0) g_entrance.start(millis(), dur);
+    else         g_entrance.cancel();
+    renderCurrent();
 }
 
 static void renderRefreshingOverlay(const char *label) {
@@ -156,7 +185,7 @@ static void enterSleepAndRefreshOnWake() {
     g_balScroll.reset();
     applyRefreshRequest("Refreshing\xE2\x80\xA6");
     ensureCostLoaded();
-    renderCurrent();
+    startViewAnim();   // play the entrance on wake
 }
 
 // USB-CDC RX handler: looks for the magic flash trigger. When matched, reboots
@@ -235,7 +264,7 @@ void setup() {
     bool ok = fetchAndApply(0x00);
     Serial.printf("[stopwatch-fw] BLE fetch returned %d (linkStatus=%d)\n",
                   (int)ok, (int)g_app.linkStatus());
-    renderCurrent();
+    startViewAnim();   // first paint plays the entrance
 }
 
 void loop() {
@@ -252,8 +281,15 @@ void loop() {
             if (!isBalanceView(g_app.currentView())) g_balScroll.reset();
             ensureCostLoaded();
             ensureBalanceLoaded();
-            renderCurrent();
+            startViewAnim();
         }
+    }
+
+    // View entrance: keep redrawing each frame until it settles.
+    if (g_entrance.isAnimating()) {
+        g_entrance.tick(millis());
+        renderCurrent();
+        g_power.noteActivity();   // hold off sleep while the entrance plays
     }
 
     // Touch: only meaningful on the Balances screen; drives the scroll model.
@@ -275,5 +311,9 @@ void loop() {
     }
 
     if (g_power.shouldSleep()) enterSleepAndRefreshOnWake();
-    delay(20);
+    // While an entrance plays, drop the 50 Hz idle throttle so frames run as
+    // fast as the panel can push — the millis()-based clock keeps the timing
+    // correct, the extra frames just make the motion smooth. delay(2) still
+    // yields to the RTOS. Idle stays at 20 ms to keep the device cool/asleep.
+    delay(g_entrance.isAnimating() ? 2 : 20);
 }

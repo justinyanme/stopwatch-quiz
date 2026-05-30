@@ -32,8 +32,10 @@ void Renderer::drawRing(int cx, int cy, int radius, int stroke,
     if (fillFraction <= 0.0f) return;
 
     // Fill from 12 o'clock clockwise. LovyanGFX fillArc: 0° = 3 o'clock, +CW.
+    // Round (not truncate) the end angle so the arc meets its end-cap exactly
+    // instead of trailing it by up to a degree as the sweep animates.
     float endDeg = 360.0f * fillFraction;
-    sprite_.fillArc(cx, cy, radius, innerR, -90, -90 + (int)endDeg, fillColor);
+    sprite_.fillArc(cx, cy, radius, innerR, -90, -90 + (int)(endDeg + 0.5f), fillColor);
 
     // Round end-caps: filled circles on the stroke centerline at each arc terminus.
     // Stroke 14 → cap radius 7. Skipped at fillFraction == 1.0 (caps would overlap meaninglessly).
