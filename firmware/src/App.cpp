@@ -38,6 +38,7 @@ bool App::handleEvent(ButtonEvent ev) {
 
 void App::noteWakeFromSleep() {
     wantsRefresh_ = true;
+    detailIndex_ = -1;   // wake to the list, never a stale detail index
 }
 
 }  // namespace stopwatch
