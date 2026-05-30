@@ -28,7 +28,8 @@ public:
 
 private:
     FetchResult fetchInto(const char *charUuid, uint8_t scope,
-                          uint8_t *outBytes, size_t bufSize, size_t &outLen);
+                          uint8_t *outBytes, size_t bufSize, size_t &outLen,
+                          bool pollPastPendingUsage = false);
 };
 
 }  // namespace stopwatch

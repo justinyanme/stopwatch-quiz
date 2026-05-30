@@ -54,8 +54,7 @@ static void drawCurrentView() {
             if (g_app.inBalanceDetail() &&
                 g_app.balanceDetailIndex() < g_balance.recordCount) {
                 const auto &bal = g_balance.records[g_app.balanceDetailIndex()];
-                const UsageRecord *u = g_usage.find(bal.kind);
-                views::drawProviderUsage(g_renderer, bal, u, g_app.usageMetric(),
+                views::drawProviderUsage(g_renderer, bal, g_usage, g_app.usageMetric(),
                                          g_app.linkStatus(), g_entrance);
             } else {
                 int contentH = views::drawBalances(g_renderer, g_balance, link, g_balScroll.offset());
@@ -177,6 +176,7 @@ static bool fetchUsageAndApply() {
     if (g_ble.fetchUsage(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
     stopwatch::UsageSnapshot us;
     if (stopwatch::decodeUsageSnapshot(buf, len, us) != stopwatch::UsageDecodeResult::Ok) return false;
+    if (!us.shouldCache()) return false;
     g_usage = us;
     g_store.save("usage", buf, len);
     g_usageLoaded = true;

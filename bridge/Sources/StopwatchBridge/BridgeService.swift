@@ -113,7 +113,7 @@ public actor BridgeService {
 
     private func handleUsageRefresh() async {
         guard !usageTargets.isEmpty else {
-            await peripheral.updateUsageSnapshot(UsageEncoder.staleEmpty()); return
+            await peripheral.updateUsageSnapshot(UsageEncoder.unavailableEmpty()); return
         }
         let fresh = await usageClient.fetchAll(usageTargets)
         await peripheral.updateUsageSnapshot(usageCache.recordSuccess(fresh))

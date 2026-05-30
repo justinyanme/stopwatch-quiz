@@ -41,6 +41,36 @@ const char *providerLabel(BalanceKind k) {
     }
 }
 
+const char *usageMessage(const UsageSnapshot &snapshot, const UsageRecord *usage) {
+    if (snapshot.isUnavailable() || snapshot.isPendingEmpty()) return "usage unavailable";
+    if (snapshot.isBridgeError()) return "usage refresh failed";
+    if (snapshot.isStale()) return "usage data stale";
+    if (!usage) return "usage data unavailable";
+    switch (usage->status) {
+        case BalanceStatus::AuthError:   return "usage auth error";
+        case BalanceStatus::Unreachable: return "usage offline";
+        case BalanceStatus::Stale:       return "usage data stale";
+        case BalanceStatus::Depleted:    return "usage depleted";
+        default:                         return "usage data unavailable";
+    }
+}
+
+struct Pill { const char *label; uint32_t color; };
+Pill pillFor(LinkStatus link, const UsageSnapshot &snapshot, const UsageRecord *usage) {
+    if (link == LinkStatus::NoBridge)              return { "no bridge", theme::kPillInfo };
+    if (link == LinkStatus::LinkError)             return { "link error", theme::kPillError };
+    if (snapshot.isUnavailable() || snapshot.isPendingEmpty()) return { "no usage", theme::kPillInfo };
+    if (snapshot.isStale() || snapshot.isBridgeError())        return { "usage stale", theme::kPillStale };
+    if (!usage) return { nullptr, 0 };
+    switch (usage->status) {
+        case BalanceStatus::AuthError:   return { "auth error", theme::kPillError };
+        case BalanceStatus::Unreachable: return { "offline", theme::kPillError };
+        case BalanceStatus::Stale:       return { "usage stale", theme::kPillStale };
+        case BalanceStatus::Depleted:    return { "depleted", theme::kPillStale };
+        default:                         return { nullptr, 0 };
+    }
+}
+
 void drawCenteredAmount(M5Canvas &c, const char *amount, const char *currency,
                         bool showCurrency, int centerX, int y, uint32_t color) {
     c.setFont(theme::kFontHero);
@@ -96,13 +126,15 @@ void drawUsageTotalLine(M5Canvas &c, const char *amount, const char *currency,
 }  // namespace
 
 void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
-                       const UsageRecord *usage, UsageMetric metric,
+                       const UsageSnapshot &snapshot, UsageMetric metric,
                        LinkStatus link, const Entrance &anim) {
     auto &c = renderer.canvas();
     renderer.clear(theme::kBackground);
     c.setTextDatum(middle_center);
     uint32_t e = anim.elapsed();
     uint32_t color = theme::balanceColorFor(bal.kind);
+    const UsageRecord *usage = snapshot.find(bal.kind);
+    const bool hasChartData = snapshot.hasFreshSuccessfulData(bal.kind);
 
     // Header: provider name.
     c.setFont(theme::kFontTitle);
@@ -120,7 +152,7 @@ void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
     c.setTextColor(theme::kTextMuted);
     c.drawString("balance", theme::kCenterX, theme::kCenterY - 4);
 
-    if (usage) {
+    if (hasChartData) {
         // Totals line: 30d cost · tokens.
         if (usage->monthCostMinor) {
             char mo[16]; formatBalanceMinor(usage->monthCostMinor.value(), usage->decimals, mo, sizeof(mo));
@@ -146,14 +178,11 @@ void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
     } else {
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("usage data unavailable", theme::kCenterX, theme::kCenterY + 40);
+        c.drawString(usageMessage(snapshot, usage), theme::kCenterX, theme::kCenterY + 40);
     }
 
-    // Status pill (only when there's a link problem).
-    const char *pill = (link == LinkStatus::NoBridge)  ? "no bridge"
-                     : (link == LinkStatus::LinkError) ? "link error" : nullptr;
-    uint32_t pillColor = (link == LinkStatus::NoBridge) ? theme::kPillInfo : theme::kPillError;
-    renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill, pillColor);
+    auto pill = pillFor(link, snapshot, usage);
+    renderer.drawPill(theme::kCenterX, theme::kCenterY + theme::kRingOuterR - 8, pill.label, pill.color);
 }
 
 }  // namespace stopwatch::views

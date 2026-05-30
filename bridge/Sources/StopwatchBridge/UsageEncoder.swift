@@ -42,6 +42,9 @@ public enum UsageEncoder {
     public static func staleEmpty() -> Data {
         encode(.init(capturedAt: Date(timeIntervalSince1970: 0), flags: [.stale, .unavailable], providers: []))
     }
+    public static func unavailableEmpty(capturedAt: Date = Date()) -> Data {
+        encode(.init(capturedAt: capturedAt, flags: [.stale, .unavailable], providers: []))
+    }
     public static func errorEmpty(capturedAt: Date = Date()) -> Data {
         encode(.init(capturedAt: capturedAt, flags: [.stale, .bridgeError], providers: []))
     }

@@ -66,6 +66,19 @@ import Testing
         #expect((failed[3] & UsageFlags.bridgeError.rawValue) != 0)
     }
 
+    @Test func unavailableEmptyIsDistinctFromStartupStaleEmpty() {
+        let startup = [UInt8](UsageEncoder.staleEmpty())
+        let unavailable = [UInt8](UsageEncoder.unavailableEmpty(capturedAt: Date(timeIntervalSince1970: 100)))
+
+        #expect(startup.count == Protocol.usageHeaderSize)
+        #expect(unavailable.count == Protocol.usageHeaderSize)
+        #expect(startup[2] == 0)
+        #expect(unavailable[2] == 0)
+        #expect((unavailable[3] & UsageFlags.unavailable.rawValue) != 0)
+        #expect(startup[4..<8].allSatisfy { $0 == 0 })
+        #expect(unavailable[4] == 100)
+    }
+
     @Test func unknownsBecomeSentinels() {
         let p = NormalizedUsageSpend.Provider(
             kind: .openrouter, status: .ok, currencyCode: "USD",

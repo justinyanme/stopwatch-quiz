@@ -21,6 +21,8 @@ struct UsageRecord {
     uint32_t tokenUnit = 1;                 // tokenHistory[i] * tokenUnit = tokens
     uint8_t  costHistory[kUsageHistoryDays]  = {0};
     uint8_t  tokenHistory[kUsageHistoryDays] = {0};
+
+    bool isSuccessful() const { return status == BalanceStatus::Ok; }
 };
 
 struct UsageSnapshot {
@@ -35,11 +37,26 @@ struct UsageSnapshot {
     bool isStale()       const { return flags & kUsageFlagStale; }
     bool isBridgeError() const { return flags & kUsageFlagBridgeError; }
     bool isUnavailable() const { return flags & kUsageFlagUnavailable; }
+    bool isFresh()       const { return !isStale() && !isBridgeError() && !isUnavailable(); }
+
+    bool isPendingEmpty() const {
+        return recordCount == 0 && capturedAt == 0 && isStale() && isUnavailable();
+    }
+
+    bool shouldCache() const {
+        return !isPendingEmpty();
+    }
 
     const UsageRecord *find(BalanceKind k) const {
         for (uint8_t i = 0; i < recordCount; ++i)
             if (records[i].kind == k) return &records[i];
         return nullptr;
+    }
+
+    bool hasFreshSuccessfulData(BalanceKind k) const {
+        if (!isFresh()) return false;
+        const UsageRecord *record = find(k);
+        return record && record->isSuccessful();
     }
 };
 

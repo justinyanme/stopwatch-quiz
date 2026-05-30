@@ -128,6 +128,58 @@ void test_openRouterFixtureDecodes(void) {
     TEST_ASSERT_INT_WITHIN(r->costUnit, 10000, (int)r->costHistory[29] * (int)r->costUnit);
 }
 
+void test_startupStaleEmptyIsPendingNotLoadable(void) {
+    uint8_t b[kUsageHeaderSize] = {
+        1, 0, 0,
+        (uint8_t)(kUsageFlagStale | kUsageFlagUnavailable),
+        0, 0, 0, 0,
+        kUsageHistoryDays, 0, 0, 0
+    };
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b, sizeof(b), u));
+    TEST_ASSERT_TRUE(u.isPendingEmpty());
+    TEST_ASSERT_FALSE(u.shouldCache());
+    TEST_ASSERT_FALSE(u.hasFreshSuccessfulData(BalanceKind::OpenRouter));
+}
+
+void test_terminalUnavailableEmptyIsLoadableButNotChartReady(void) {
+    uint8_t b[kUsageHeaderSize] = {
+        1, 0, 0,
+        (uint8_t)(kUsageFlagStale | kUsageFlagUnavailable),
+        0x64, 0, 0, 0,
+        kUsageHistoryDays, 0, 0, 0
+    };
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b, sizeof(b), u));
+    TEST_ASSERT_FALSE(u.isPendingEmpty());
+    TEST_ASSERT_TRUE(u.shouldCache());
+    TEST_ASSERT_FALSE(u.hasFreshSuccessfulData(BalanceKind::OpenRouter));
+}
+
+void test_freshOkRecordIsCacheableAndChartReady(void) {
+    auto b = buildOne();
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b.data(), b.size(), u));
+    TEST_ASSERT_FALSE(u.isPendingEmpty());
+    TEST_ASSERT_TRUE(u.shouldCache());
+    TEST_ASSERT_TRUE(u.hasFreshSuccessfulData(BalanceKind::OpenRouter));
+}
+
+void test_staleSnapshotAndFailedRecordAreNotChartReady(void) {
+    auto b = buildOne();
+    b[3] = kUsageFlagStale;
+    UsageSnapshot u;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b.data(), b.size(), u));
+    TEST_ASSERT_TRUE(u.shouldCache());
+    TEST_ASSERT_FALSE(u.hasFreshSuccessfulData(BalanceKind::OpenRouter));
+
+    b[3] = 0;
+    b[kUsageHeaderSize + 1] = (uint8_t)BalanceStatus::AuthError;
+    TEST_ASSERT_EQUAL((int)UsageDecodeResult::Ok, (int)decodeUsageSnapshot(b.data(), b.size(), u));
+    TEST_ASSERT_TRUE(u.shouldCache());
+    TEST_ASSERT_FALSE(u.hasFreshSuccessfulData(BalanceKind::OpenRouter));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_decodesRecord);
@@ -136,5 +188,9 @@ int main(int, char **) {
     RUN_TEST(test_tooShortRejected);
     RUN_TEST(test_recordCountOverMaxRejected);
     RUN_TEST(test_openRouterFixtureDecodes);
+    RUN_TEST(test_startupStaleEmptyIsPendingNotLoadable);
+    RUN_TEST(test_terminalUnavailableEmptyIsLoadableButNotChartReady);
+    RUN_TEST(test_freshOkRecordIsCacheableAndChartReady);
+    RUN_TEST(test_staleSnapshotAndFailedRecordAreNotChartReady);
     return UNITY_END();
 }

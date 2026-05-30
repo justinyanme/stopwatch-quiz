@@ -8,10 +8,10 @@
 namespace stopwatch::views {
 
 /// Per-provider usage detail. `bal` supplies the balance hero (always present);
-/// `usage` supplies the chart + totals (may be null → balance-only fallback).
+/// `usage` supplies chart totals/status for usage-capable providers.
 /// `metric` selects the chart series. `anim` drives the entrance.
 void drawProviderUsage(Renderer &renderer, const BalanceRecord &bal,
-                       const UsageRecord *usage, UsageMetric metric,
+                       const UsageSnapshot &usage, UsageMetric metric,
                        LinkStatus link, const Entrance &anim);
 
 }  // namespace stopwatch::views
