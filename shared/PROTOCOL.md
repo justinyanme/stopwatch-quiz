@@ -18,6 +18,7 @@ Authoritative source for the BLE GATT service and binary payload shared between 
 | `RefreshTrigger` | `6817329E-A603-4A34-BB4D-04215218304C` | Write Without Response | watch → bridge | Watch writes 1 byte (provider scope) to ask for a fresh fetch. |
 | `CostSnapshot` | `33FAAC2D-3935-467F-A0A0-899CE2306366` | Read + Notify | bridge → watch | Spend/burn data. Watch reads lazily on entering a spend screen; bridge notifies on change. Versioned independently of `UsageSnapshot`. |
 | `BalanceSnapshot` | `4D9E8F21-7C3A-4B6D-8E15-9A2F6C3B0D74` | Read + Notify | bridge → watch | API credit balances. Watch reads lazily on entering the Balances view; bridge notifies on change. Versioned independently. Read via ATT read-blob (may exceed one MTU). |
+| `BalanceUsage` | `7E2C5A19-4B8F-4D3A-9E61-2F7A8C0B5D34` | Read + Notify | bridge → watch | Per-provider usage/spend history (cost & token charts). Watch reads lazily on entering a provider detail screen. Versioned independently. |
 
 ### 2.1 `RefreshTrigger` payload
 
@@ -31,6 +32,7 @@ Single byte:
 | `0x03` | Gemini only |
 | `0x04` | Cost only (re-fetch `/cost` for all providers) |
 | `0x05` | Balances only (poll all configured API-balance providers) |
+| `0x06` | BalanceUsage only (fetch per-provider usage/spend history) |
 
 Any other value → bridge logs warning and treats as `0x00`.
 
@@ -146,38 +148,39 @@ Versioning follows the same major/minor rules as §3.3.
 Independent versioning. Size = `12 + 96 × recordCount`. Carries only usage-capable
 providers (OpenRouter, DeepSeek, AIHubMix). Watch reads lazily on entering a provider
 detail screen. Characteristic `7E2C5A19-4B8F-4D3A-9E61-2F7A8C0B5D34`, trigger scope `0x06`.
+All integers little-endian.
 
 ### 3C.1 Header (12 bytes)
 
-| Offset | Field | Type | Notes |
-|--------|-------|------|-------|
-| 0 | `versionMajor` | u8 | `0x01` |
-| 1 | `versionMinor` | u8 | `0x00` |
-| 2 | `recordCount` | u8 | 0–4 |
-| 3 | `flags` | u8 | bit0 stale, bit1 bridge_error, bit2 unavailable |
-| 4 | `capturedAt` | u32 | unix seconds |
-| 8 | `historyDays` | u8 | always 30 |
-| 9 | reserved | u8 | 0 |
-| 10 | reserved | u16 | 0 (scales are per-record) |
+| Offset | Type | Field | Meaning |
+|--------|------|-------|---------|
+| 0 | uint8 | `versionMajor` | `0x01` |
+| 1 | uint8 | `versionMinor` | `0x00` |
+| 2 | uint8 | `recordCount` | 0–4 |
+| 3 | uint8 | `flags` | bit0 stale, bit1 bridge_error, bit2 unavailable |
+| 4 | uint32 | `capturedAt` | Unix seconds |
+| 8 | uint8 | `historyDays` | always 30 |
+| 9 | uint8 | reserved | `0` |
+| 10 | uint16 | reserved | `0` (scales are per-record) |
 
 ### 3C.2 Per-record (96 bytes, repeated `recordCount` times)
 
-| Offset | Field | Type | Notes |
-|--------|-------|------|-------|
-| 0 | `kind` | u8 | BalanceKind enum |
-| 1 | `status` | u8 | BalanceStatus enum |
-| 2 | `currency` | char[3] | ASCII |
-| 5 | `decimals` | u8 | currency minor-unit exponent |
-| 6 | `costUnit` | u16 | `costHistory[i] × costUnit = minor units` |
-| 8 | `tokenUnit` | u32 | `tokenHistory[i] × tokenUnit = tokens` |
-| 12 | `todayCostMinor` | u32 | `0xFFFFFFFF` = unknown |
-| 16 | `monthCostMinor` | u32 | |
-| 20 | `todayTokens` | u32 | |
-| 24 | `monthTokens` | u32 | |
-| 28 | `todayRequests` | u32 | |
-| 32 | `monthRequests` | u32 | |
-| 36 | `costHistory[30]` | u8×30 | scaled by `costUnit` |
-| 66 | `tokenHistory[30]` | u8×30 | scaled by `tokenUnit` |
+| Offset | Type | Field | Meaning |
+|--------|------|-------|---------|
+| 0 | uint8 | `kind` | BalanceKind enum |
+| 1 | uint8 | `status` | BalanceStatus enum |
+| 2 | char[3] | `currency` | ASCII currency code |
+| 5 | uint8 | `decimals` | currency minor-unit exponent |
+| 6 | uint16 | `costUnit` | `costHistory[i] × costUnit = minor units` |
+| 8 | uint32 | `tokenUnit` | `tokenHistory[i] × tokenUnit = tokens` |
+| 12 | uint32 | `todayCostMinor` | `0xFFFFFFFF` = unknown |
+| 16 | uint32 | `monthCostMinor` | |
+| 20 | uint32 | `todayTokens` | |
+| 24 | uint32 | `monthTokens` | |
+| 28 | uint32 | `todayRequests` | |
+| 32 | uint32 | `monthRequests` | |
+| 36 | uint8[30] | `costHistory[30]` | scaled by `costUnit` |
+| 66 | uint8[30] | `tokenHistory[30]` | scaled by `tokenUnit` |
 
 ## 4. Test fixtures
 
