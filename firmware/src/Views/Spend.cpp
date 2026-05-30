@@ -45,15 +45,20 @@ void drawSparkline(M5Canvas &c, int x, int y, int w, int h,
 }
 
 // Font7 (7-segment) has no '$' and Font4's 0x24 is a '£' (see Theme.h), so the
-// sign is set in kFontDollar (Font2) and raised like a price superscript, with
-// the big digits in Font7. Centered on cx; digits vertically centered on y.
+// sign is set in kFontDollar (Font2), scaled up (kSignScale) toward the digit
+// height and raised like a price superscript, with the big digits in Font7.
+// Centered on cx; digits vertically centered on y. textWidth/fontHeight both
+// honour the size multiplier, so the layout maths stay correct.
 void drawMoneyHero(M5Canvas &c, uint32_t cents, int cx, int y, uint32_t color) {
     char money[16]; formatDollars(cents, money, sizeof(money), true);
     const char *digits = (money[0] == '$') ? money + 1 : money;
     constexpr int kGap = 4;
+    constexpr float kSignScale = 2.0f;  // Font2 '$' is small next to Font7 — bump it
 
     c.setFont(theme::kFontDollar);
+    c.setTextSize(kSignScale);
     int signW = c.textWidth("$");
+    c.setTextSize(1.0f);
     c.setFont(theme::kFontHero);
     int digitsW   = c.textWidth(digits);
     int digitsTop = y - c.fontHeight() / 2;
@@ -61,8 +66,10 @@ void drawMoneyHero(M5Canvas &c, uint32_t cents, int cx, int y, uint32_t color) {
 
     c.setTextColor(color);
     c.setFont(theme::kFontDollar);
+    c.setTextSize(kSignScale);
     c.setTextDatum(top_left);
     c.drawString("$", leftX, digitsTop);
+    c.setTextSize(1.0f);
     c.setFont(theme::kFontHero);
     c.setTextDatum(middle_left);
     c.drawString(digits, leftX + signW + kGap, y);
