@@ -308,6 +308,7 @@ void setup() {
 
 void loop() {
     using namespace stopwatch;
+    M5.update();
     auto ev = pollButtons();
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();
@@ -339,7 +340,6 @@ void loop() {
 
     // Touch: only meaningful on the Balances screen; drives the scroll model.
     if (isBalanceView(g_app.currentView())) {
-        M5.update();
         auto t = M5.Touch.getDetail();
         if (g_app.inBalanceDetail()) {
             // In detail: ignore touch; only buttons act. Entrance animates via the block below.
