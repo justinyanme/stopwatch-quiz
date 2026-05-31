@@ -9,6 +9,41 @@ void App::begin() {
     wantsSleep_ = false;
     detailIndex_ = -1;
     metric_ = UsageMetric::Cost;
+    inCarouselSettings_ = false;
+    settingRow_ = CarouselSettingRow::Autoplay;
+}
+
+bool App::handleEvent(ButtonEvent ev, CarouselSettings &settings) {
+    if (ev == ButtonEvent::BothLong) {
+        inCarouselSettings_ = !inCarouselSettings_;
+        settingRow_ = CarouselSettingRow::Autoplay;
+        settings.validate();
+        return true;
+    }
+
+    if (inCarouselSettings_) {
+        switch (ev) {
+            case ButtonEvent::KeyBShort:
+                settingRow_ = nextSettingRow(settingRow_);
+                return true;
+            case ButtonEvent::KeyAShort:
+                settings.cycle(settingRow_);
+                settings.validate();
+                return true;
+            case ButtonEvent::KeyALong:
+                settings.resetDefaults();
+                return true;
+            case ButtonEvent::KeyBLong:
+                wantsSleep_ = true;
+                return false;
+            case ButtonEvent::None:
+            case ButtonEvent::BothLong:
+                return false;
+        }
+        return false;
+    }
+
+    return handleEvent(ev);
 }
 
 bool App::handleEvent(ButtonEvent ev) {
@@ -23,6 +58,7 @@ bool App::handleEvent(ButtonEvent ev) {
             case ButtonEvent::KeyALong:  wantsRefresh_ = true; return false;
             case ButtonEvent::KeyBLong:  wantsSleep_   = true; return false;
             case ButtonEvent::None:                            return false;
+            case ButtonEvent::BothLong:                        return false;
         }
         return false;
     }
@@ -32,6 +68,7 @@ bool App::handleEvent(ButtonEvent ev) {
         case ButtonEvent::KeyALong:  wantsRefresh_ = true;    return false;
         case ButtonEvent::KeyBLong:  wantsSleep_   = true;    return false;
         case ButtonEvent::None:                                return false;
+        case ButtonEvent::BothLong:                            return false;
     }
     return false;
 }
@@ -39,6 +76,7 @@ bool App::handleEvent(ButtonEvent ev) {
 void App::noteWakeFromSleep() {
     wantsRefresh_ = true;
     detailIndex_ = -1;   // wake to the list, never a stale detail index
+    inCarouselSettings_ = false;
 }
 
 }  // namespace stopwatch

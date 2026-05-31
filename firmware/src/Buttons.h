@@ -8,6 +8,7 @@ enum class ButtonEvent : uint8_t {
     None,
     KeyAShort, KeyALong,
     KeyBShort, KeyBLong,
+    BothLong,
 };
 
 /// Polls M5 button state. Call once per loop tick; debounces at ~20ms.

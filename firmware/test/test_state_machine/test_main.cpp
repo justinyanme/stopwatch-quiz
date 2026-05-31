@@ -153,6 +153,62 @@ void test_carouselSettingsCyclesValues(void) {
     TEST_ASSERT_EQUAL_UINT16(10, s.resumeSeconds);
 }
 
+void test_bothLongEntersAndExitsCarouselSettings(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+
+    TEST_ASSERT_FALSE(app.inCarouselSettings());
+    bool changed = app.handleEvent(ButtonEvent::BothLong, settings);
+    TEST_ASSERT_TRUE(changed);
+    TEST_ASSERT_TRUE(app.inCarouselSettings());
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
+
+    changed = app.handleEvent(ButtonEvent::BothLong, settings);
+    TEST_ASSERT_TRUE(changed);
+    TEST_ASSERT_FALSE(app.inCarouselSettings());
+}
+
+void test_carouselSettingsRowsAndValuesChange(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::BothLong, settings);
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Interval, (int)app.carouselSettingRow());
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL_UINT16(15, settings.intervalSeconds);
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Motion, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Fade, (int)settings.motionMode);
+}
+
+void test_carouselSettingsResetDefaults(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::BothLong, settings);
+    app.handleEvent(ButtonEvent::KeyAShort, settings);
+    TEST_ASSERT_FALSE(settings.autoplayEnabled);
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyALong, settings));
+    TEST_ASSERT_TRUE(settings.autoplayEnabled);
+    TEST_ASSERT_EQUAL_UINT16(10, settings.intervalSeconds);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)settings.motionMode);
+    TEST_ASSERT_EQUAL_UINT16(20, settings.resumeSeconds);
+}
+
+void test_carouselSettingsSleepStillWorks(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::BothLong, settings);
+    TEST_ASSERT_FALSE(app.wantsImmediateSleep());
+    TEST_ASSERT_FALSE(app.handleEvent(ButtonEvent::KeyBLong, settings));
+    TEST_ASSERT_TRUE(app.wantsImmediateSleep());
+    TEST_ASSERT_TRUE(app.inCarouselSettings());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_keyBShortCyclesForward);
@@ -167,5 +223,9 @@ int main(int, char **) {
     RUN_TEST(test_carouselUnaffectedWhenNotInDetail);
     RUN_TEST(test_carouselSettingsDefaultsAndValidation);
     RUN_TEST(test_carouselSettingsCyclesValues);
+    RUN_TEST(test_bothLongEntersAndExitsCarouselSettings);
+    RUN_TEST(test_carouselSettingsRowsAndValuesChange);
+    RUN_TEST(test_carouselSettingsResetDefaults);
+    RUN_TEST(test_carouselSettingsSleepStillWorks);
     return UNITY_END();
 }
