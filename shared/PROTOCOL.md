@@ -107,7 +107,7 @@ Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All inte
 | 6 | uint32 | `monthCostCents` | `0xFFFFFFFF` = unknown. |
 | 10 | uint32 | `todayTokens` | `0xFFFFFFFF` = unknown. |
 | 14 | uint32 | `monthTokens` | `0xFFFFFFFF` = unknown. |
-| 18 | char[12] | `topModel` | UTF-8, null-padded, vendor-prefix-stripped. |
+| 18 | char[12] | `topModel` | UTF-8, null-padded, vendor-prefix-stripped. Bridge chooses the newest dated daily model from CodexBar, falling back to the 30-day highest-cost model if dates are unavailable. |
 | 30 | uint8[30] | `history` | Oldest→newest; index 29 = `capturedAt` day; `round(dayCents / historyUnitCents)`. |
 
 History is normalized on one shared scale so the watch can sum providers for the combined burn chart.

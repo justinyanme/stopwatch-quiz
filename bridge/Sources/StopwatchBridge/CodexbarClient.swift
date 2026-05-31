@@ -155,11 +155,12 @@ public actor CodexbarClient {
 
         let providers = raw.compactMap { c -> NormalizedCost.Provider? in
             guard let id = ProviderID(fromString: c.provider) else { return nil }
-            let dailyPairs = (c.daily ?? []).map { (date: $0.date, costUSD: $0.totalCost ?? 0) }
-            let breakdowns = (c.daily ?? []).map { day -> [String: Double] in
+            let daily = c.daily ?? []
+            let dailyPairs = daily.map { (date: $0.date, costUSD: $0.totalCost ?? 0) }
+            let breakdowns = daily.map { day -> (date: String, models: [String: Double]) in
                 var m: [String: Double] = [:]
                 for b in day.modelBreakdowns ?? [] { m[b.modelName, default: 0] += b.cost ?? 0 }
-                return m
+                return (date: day.date, models: m)
             }
             return .init(
                 providerID:   id,
@@ -167,7 +168,7 @@ public actor CodexbarClient {
                 monthCostUSD: c.last30DaysCostUSD,
                 todayTokens:  c.sessionTokens.map { UInt64(max(0, $0.rounded())) },
                 monthTokens:  c.last30DaysTokens.map { UInt64(max(0, $0.rounded())) },
-                topModel:     Self.topModel(from: breakdowns),
+                topModel:     Self.displayModel(from: breakdowns),
                 history:      Self.alignDailyHistory(dailyPairs, anchor: now,
                                                      days: Protocol.costHistoryDays)
             )
@@ -201,17 +202,41 @@ public actor CodexbarClient {
         var out = [Double](repeating: 0, count: days)
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.timeZone = TimeZone(identifier: "UTC")!
-        fmt.dateFormat = "yyyy-MM-dd"
         let today = cal.startOfDay(for: anchor)
         for entry in daily {
-            guard let d = fmt.date(from: entry.date) else { continue }
+            guard let d = costDay(entry.date) else { continue }
             let offset = cal.dateComponents([.day], from: cal.startOfDay(for: d), to: today).day ?? -1
             if offset >= 0 && offset < days { out[days - 1 - offset] += entry.costUSD }
         }
         return out
+    }
+
+    /// Returns the model label to show on the watch cost detail header. Prefer
+    /// the newest dated CodexBar daily record so newly active models show up
+    /// promptly; fall back to the 30-day top model if dates are missing.
+    static func displayModel(from daily: [(date: String, models: [String: Double])]) -> String? {
+        var latestDay: Date?
+        var latestModels: [String: Double] = [:]
+
+        for day in daily {
+            guard !day.models.isEmpty, let date = costDay(day.date) else { continue }
+            if let currentLatest = latestDay {
+                if date > currentLatest {
+                    latestDay = date
+                    latestModels = day.models
+                } else if date == currentLatest {
+                    for (name, cost) in day.models { latestModels[name, default: 0] += cost }
+                }
+            } else {
+                latestDay = date
+                latestModels = day.models
+            }
+        }
+
+        if !latestModels.isEmpty {
+            return topModel(from: [latestModels])
+        }
+        return topModel(from: daily.map(\.models))
     }
 
     /// Sums cost per model across daily breakdowns, returns the highest-cost model name.
@@ -222,6 +247,14 @@ public actor CodexbarClient {
         }
         // Deterministic: highest total cost, ties broken by model name (ascending).
         return totals.sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }.first?.key
+    }
+
+    private static func costDay(_ value: String) -> Date? {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(identifier: "UTC")!
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.date(from: value)
     }
 
     /// True if `error` is intentional task cancellation (a newer trigger superseded this

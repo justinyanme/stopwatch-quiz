@@ -105,6 +105,31 @@ import Testing
         #expect(cost.providers[1].history[29] == 60.0)
     }
 
+    @Test func costModelLabelPrefersLatestDailyModel() async throws {
+        let body = Data("""
+        [{
+          "provider": "claude",
+          "sessionCostUSD": 1.0,
+          "sessionTokens": 1000,
+          "last30DaysCostUSD": 301.0,
+          "last30DaysTokens": 301000,
+          "daily": [
+            { "date": "2026-05-30", "totalCost": 1.0,
+              "modelBreakdowns": [ { "modelName": "latest-daily-model", "cost": 1.0 } ] },
+            { "date": "2026-05-29", "totalCost": 300.0,
+              "modelBreakdowns": [ { "modelName": "older-cost-heavy-model", "cost": 300.0 } ] }
+          ]
+        }]
+        """.utf8)
+        StubURLProtocol.stub = .init(status: 200, body: body)
+
+        let client = CodexbarClient(port: 51111, session: stubSession())
+        let cost = try await client.fetchCost(scope: .all, now: utcDate("2026-05-30"))
+
+        #expect(cost.providers.count == 1)
+        #expect(cost.providers[0].topModel == "latest-daily-model")
+    }
+
     @Test func emptyCostArraySetsUnavailable() async throws {
         StubURLProtocol.stub = .init(status: 200, body: Data("[]".utf8))
         let client = CodexbarClient(port: 51111, session: stubSession())
