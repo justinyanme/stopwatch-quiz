@@ -74,6 +74,40 @@ void test_idleReadsSettled(void) {
     TEST_ASSERT_FALSE(e.isAnimating());
 }
 
+void test_irisHelpersClampAndMove(void) {
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, motion::irisCover(0));
+    TEST_ASSERT_TRUE(motion::irisCover(80) > 0.0f);
+    TEST_ASSERT_TRUE(motion::irisCover(80) < 1.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::irisCover(motion::kIrisCloseMs));
+
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::irisReveal(0));
+    TEST_ASSERT_TRUE(motion::irisReveal(100) > 0.0f);
+    TEST_ASSERT_TRUE(motion::irisReveal(100) < 1.0f);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, motion::irisReveal(motion::kIrisOpenMs));
+}
+
+void test_haloAndFadeClamp(void) {
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::irisHalo(0));
+    TEST_ASSERT_TRUE(motion::irisHalo(motion::kIrisHaloStartMs + 10) > 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::irisHalo(100000));
+
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::fadeReveal(0));
+    TEST_ASSERT_TRUE(motion::fadeReveal(80) > 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, motion::fadeReveal(motion::kFadeMs));
+}
+
+void test_irisTransitionHasReadableDwell(void) {
+    TEST_ASSERT_TRUE(motion::kIrisTransitionMs >= 600);
+    TEST_ASSERT_TRUE(motion::kIrisSwitchMs > motion::kIrisCloseMs);
+
+    TEST_ASSERT_TRUE(motion::irisCover(50) > 0.85f);
+    TEST_ASSERT_TRUE(motion::irisCover(150) > 0.35f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, motion::irisCover(motion::kIrisCloseMs));
+
+    TEST_ASSERT_TRUE(motion::irisReveal(50) < 0.15f);
+    TEST_ASSERT_TRUE(motion::irisReveal(150) < 0.45f);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ringOuterLeadsInner);
@@ -84,5 +118,8 @@ int main(int, char **) {
     RUN_TEST(test_countUp);
     RUN_TEST(test_entranceLifecycle);
     RUN_TEST(test_idleReadsSettled);
+    RUN_TEST(test_irisHelpersClampAndMove);
+    RUN_TEST(test_haloAndFadeClamp);
+    RUN_TEST(test_irisTransitionHasReadableDwell);
     return UNITY_END();
 }

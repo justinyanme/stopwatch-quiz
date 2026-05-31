@@ -1,6 +1,7 @@
 // firmware/src/App.h
 #pragma once
 #include "Buttons.h"
+#include "CarouselSettings.h"
 #include "Protocol.h"
 #include "SnapshotCodec.h"
 
@@ -26,6 +27,7 @@ public:
     void begin();
     /// Drive one event into the state machine; returns true if the view changed.
     bool handleEvent(ButtonEvent ev);
+    bool handleEvent(ButtonEvent ev, CarouselSettings &settings);
     ViewId currentView() const { return view_; }
     bool wantsRefresh() const { return wantsRefresh_; }
     void clearRefreshRequest() { wantsRefresh_ = false; }
@@ -37,9 +39,16 @@ public:
 
     bool inBalanceDetail() const { return detailIndex_ >= 0; }
     int  balanceDetailIndex() const { return detailIndex_; }
-    void enterBalanceDetail(int recordIndex) { detailIndex_ = recordIndex; metric_ = UsageMetric::Cost; }
+    void enterBalanceDetail(int recordIndex) {
+        if (inCarouselSettings_) return;
+        detailIndex_ = recordIndex;
+        metric_ = UsageMetric::Cost;
+    }
     void exitBalanceDetail() { detailIndex_ = -1; }
     UsageMetric usageMetric() const { return metric_; }
+    bool inCarouselSettings() const { return inCarouselSettings_; }
+    CarouselSettingRow carouselSettingRow() const { return settingRow_; }
+    void exitCarouselSettings() { inCarouselSettings_ = false; }
 
 private:
     ViewId view_ = ViewId::Overview;
@@ -48,6 +57,8 @@ private:
     LinkStatus link_ = LinkStatus::NoBridge;
     int detailIndex_ = -1;          // -1 = list; >=0 = showing that record's detail
     UsageMetric metric_ = UsageMetric::Cost;
+    bool inCarouselSettings_ = false;
+    CarouselSettingRow settingRow_ = CarouselSettingRow::Autoplay;
 };
 
 inline constexpr ViewId nextView(ViewId v) {
