@@ -39,6 +39,7 @@ bool                       g_balanceLoaded = false;
 stopwatch::TouchScroll     g_balScroll;
 static int  g_balPressY = 0;     // finger Y at touch-down, for tap-vs-drag detection
 static bool g_balMoved  = false; // set once the finger moves beyond the tap threshold
+static bool g_touchActive = false;
 stopwatch::Entrance        g_entrance;
 static bool                g_entranceExtendsWake = false;
 stopwatch::UsageSnapshot   g_usage;
@@ -470,8 +471,10 @@ void loop() {
     }
 
     // Touch: only meaningful on the Balances screen; drives the scroll model.
+    g_touchActive = false;
     if (isBalanceView(g_app.currentView())) {
         auto t = M5.Touch.getDetail();
+        g_touchActive = t.isPressed();
         if (g_app.inBalanceDetail()) {
             // In detail: ignore touch; only buttons act. Entrance animates via the block below.
         } else {
@@ -512,7 +515,7 @@ void loop() {
     stopwatch::CarouselContext cctx;
     cctx.inSettings = g_app.inCarouselSettings();
     cctx.inBalanceDetail = g_app.inBalanceDetail();
-    cctx.touchActive = isBalanceView(g_app.currentView()) && !g_balScroll.isResting();
+    cctx.touchActive = g_touchActive || (isBalanceView(g_app.currentView()) && !g_balScroll.isResting());
     cctx.loading = g_loading;
     cctx.transitionActive = g_transition.isAnimating();
     if (g_carousel.shouldAdvance(millis(), g_carouselSettings, cctx)) {
