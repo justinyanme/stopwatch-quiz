@@ -5,6 +5,9 @@
 #include "App.h"
 #include "BleClient.h"
 #include "Buttons.h"
+#include "CarouselController.h"
+#include "CarouselSettings.h"
+#include "CarouselTransition.h"
 #include "Power.h"
 #include "Renderer.h"
 #include "SnapshotCodec.h"
@@ -19,6 +22,7 @@
 #include "TouchScroll.h"
 #include "Anim.h"
 #include "Views/Balances.h"
+#include "Views/CarouselSettings.h"
 #include "Views/ProviderUsage.h"
 #include "UsageCodec.h"
 
@@ -38,10 +42,23 @@ static bool g_balMoved  = false; // set once the finger moves beyond the tap thr
 stopwatch::Entrance        g_entrance;
 stopwatch::UsageSnapshot   g_usage;
 bool                       g_usageLoaded = false;
+stopwatch::CarouselSettings   g_carouselSettings;
+stopwatch::CarouselController g_carousel;
+stopwatch::CarouselTransition g_transition;
+static bool                   g_loading = false;
+
+struct LoadingScope {
+    LoadingScope() { g_loading = true; }
+    ~LoadingScope() { g_loading = false; }
+};
 
 static void drawCurrentView() {
     using namespace stopwatch;
     auto link = g_app.linkStatus();
+    if (g_app.inCarouselSettings()) {
+        views::drawCarouselSettings(g_renderer, g_carouselSettings, g_app.carouselSettingRow());
+        return;
+    }
     switch (g_app.currentView()) {
         case ViewId::Overview:   views::drawOverview(g_renderer, g_snap, link, g_entrance); break;
         case ViewId::TotalSpend: views::drawTotalSpend(g_renderer, g_cost, link, g_entrance); break;
@@ -99,6 +116,7 @@ static void startViewAnim() {
 
 static void renderRefreshingOverlay(const char *label) {
     using namespace stopwatch;
+    g_loading = true;
     drawCurrentView();
     auto &c = g_renderer.canvas();
     c.fillRect(0, theme::kCenterY + theme::kRingOuterR / 2 - 18,
@@ -111,6 +129,7 @@ static void renderRefreshingOverlay(const char *label) {
 }
 
 static bool fetchAndApply(uint8_t scope) {
+    LoadingScope loading;
     uint8_t buf[stopwatch::kSnapshotSize];
     size_t len = 0;
     auto rc = g_ble.fetch(scope, buf, sizeof(buf), len);
@@ -135,6 +154,7 @@ static bool fetchAndApply(uint8_t scope) {
 }
 
 static bool fetchCostAndApply() {
+    LoadingScope loading;
     uint8_t buf[stopwatch::kCostSnapshotMaxSize];
     size_t len = 0;
     if (g_ble.fetchCost(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) {
@@ -159,6 +179,7 @@ static void ensureCostLoaded() {
 }
 
 static bool fetchBalancesAndApply() {
+    LoadingScope loading;
     uint8_t buf[stopwatch::kBalanceSnapshotMaxSize];
     size_t len = 0;
     if (g_ble.fetchBalances(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
@@ -171,6 +192,7 @@ static bool fetchBalancesAndApply() {
 }
 
 static bool fetchUsageAndApply() {
+    LoadingScope loading;
     uint8_t buf[stopwatch::kUsageSnapshotMaxSize];
     size_t len = 0;
     if (g_ble.fetchUsage(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
@@ -207,6 +229,7 @@ static bool applyRefreshRequest(const char *label) {
         fetchAndApply(0x00);
     }
     g_app.clearRefreshRequest();
+    g_loading = false;
     return true;
 }
 
@@ -266,6 +289,10 @@ void setup() {
     g_renderer.begin();
     Serial.println("[stopwatch-fw] renderer ready; init store/app/power/ble");
     g_store.begin();
+    if (!g_store.loadCarouselSettings(g_carouselSettings)) {
+        g_carouselSettings = stopwatch::CarouselSettings::defaults();
+    }
+    g_carousel.begin(millis(), g_carouselSettings);
     g_app.begin();
     g_power.begin();
     g_ble.begin();
@@ -312,12 +339,20 @@ void loop() {
     auto ev = pollButtons();
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();
-        bool changed = g_app.handleEvent(ev);
+        bool wasInSettings = g_app.inCarouselSettings();
+        bool changed = g_app.handleEvent(ev, g_carouselSettings);
+        if (wasInSettings && !g_app.inCarouselSettings()) {
+            g_store.saveCarouselSettings(g_carouselSettings);
+        }
+        g_carousel.noteUserActivity(millis());
         if (applyRefreshRequest("Refreshing\xE2\x80\xA6")) changed = true;
         if (g_app.wantsImmediateSleep()) {
             g_app.clearSleepRequest();
             enterSleepAndRefreshOnWake();
+        } else if (changed && g_app.inCarouselSettings()) {
+            renderCurrent();
         } else if (changed) {
+            g_carousel.recordManualViewChange(millis());
             if (!isBalanceView(g_app.currentView())) g_balScroll.reset();
             ensureCostLoaded();
             ensureBalanceLoaded();
@@ -346,6 +381,7 @@ void loop() {
         } else {
             if (t.isPressed()) {
                 g_power.noteActivity();
+                g_carousel.noteUserActivity(millis());
                 if (t.wasPressed()) {
                     g_balScroll.onPress(t.y);
                     g_balPressY = t.y;
@@ -361,6 +397,7 @@ void loop() {
                 if (!g_balMoved) {
                     int idx = views::balanceRowAtY(t.y, g_balScroll.offset(), g_balance.recordCount);
                     if (idx >= 0) {
+                        g_carousel.noteUserActivity(millis());
                         g_app.enterBalanceDetail(idx);
                         ensureUsageLoaded();
                         g_entrance.start(millis(), stopwatch::motion::kSpendEntranceMs);
@@ -373,6 +410,21 @@ void loop() {
                 renderCurrent();
             }
         }
+    }
+
+    stopwatch::CarouselContext cctx;
+    cctx.inSettings = g_app.inCarouselSettings();
+    cctx.inBalanceDetail = g_app.inBalanceDetail();
+    cctx.touchActive = isBalanceView(g_app.currentView()) && !g_balScroll.isResting();
+    cctx.loading = g_loading;
+    cctx.transitionActive = g_transition.isAnimating();
+    if (g_carousel.shouldAdvance(millis(), g_carouselSettings, cctx)) {
+        g_app.handleEvent(ButtonEvent::KeyBShort);
+        if (!isBalanceView(g_app.currentView())) g_balScroll.reset();
+        ensureCostLoaded();
+        ensureBalanceLoaded();
+        startViewAnim();
+        g_carousel.recordAdvance(millis());
     }
 
     if (g_power.shouldSleep()) enterSleepAndRefreshOnWake();
