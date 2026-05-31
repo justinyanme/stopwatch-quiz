@@ -82,5 +82,38 @@ inline float countUp(uint32_t elapsedMs) {
     return ease::outExpo((float)elapsedMs / (float)kCountUpMs);
 }
 
+// -- Carousel transition: restrained instrument-style iris. ------------------
+constexpr uint32_t kIrisCloseMs      = 150;
+constexpr uint32_t kIrisOpenMs       = 210;
+constexpr uint32_t kIrisSwitchMs     = kIrisCloseMs;
+constexpr uint32_t kIrisTransitionMs = kIrisCloseMs + kIrisOpenMs;
+constexpr uint32_t kIrisHaloStartMs  = 170;
+constexpr uint32_t kIrisHaloMs       = 140;
+constexpr uint32_t kFadeMs           = 180;
+
+inline float irisCover(uint32_t elapsedMs) {
+    if (elapsedMs >= kIrisCloseMs) return 0.0f;
+    return 1.0f - ease::outExpo((float)elapsedMs / (float)kIrisCloseMs);
+}
+
+inline float irisReveal(uint32_t localOpenMs) {
+    if (localOpenMs >= kIrisOpenMs) return 1.0f;
+    return ease::outExpo((float)localOpenMs / (float)kIrisOpenMs);
+}
+
+inline float irisHalo(uint32_t elapsedMs) {
+    if (elapsedMs <= kIrisHaloStartMs) return 0.0f;
+    uint32_t local = elapsedMs - kIrisHaloStartMs;
+    if (local >= kIrisHaloMs) return 0.0f;
+    float t = (float)local / (float)kIrisHaloMs;
+    return t < 0.5f ? ease::outExpo(t * 2.0f)
+                    : 1.0f - ease::outExpo((t - 0.5f) * 2.0f);
+}
+
+inline float fadeReveal(uint32_t elapsedMs) {
+    if (elapsedMs >= kFadeMs) return 1.0f;
+    return ease::outExpo((float)elapsedMs / (float)kFadeMs);
+}
+
 }  // namespace motion
 }  // namespace stopwatch
