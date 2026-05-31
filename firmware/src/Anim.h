@@ -83,22 +83,29 @@ inline float countUp(uint32_t elapsedMs) {
 }
 
 // -- Carousel transition: restrained instrument-style iris. ------------------
-constexpr uint32_t kIrisCloseMs      = 150;
-constexpr uint32_t kIrisOpenMs       = 210;
-constexpr uint32_t kIrisSwitchMs     = kIrisCloseMs;
-constexpr uint32_t kIrisTransitionMs = kIrisCloseMs + kIrisOpenMs;
-constexpr uint32_t kIrisHaloStartMs  = 170;
-constexpr uint32_t kIrisHaloMs       = 140;
-constexpr uint32_t kFadeMs           = 180;
+constexpr uint32_t kIrisCloseMs      = 280;
+constexpr uint32_t kIrisHoldMs       = 90;
+constexpr uint32_t kIrisOpenMs       = 330;
+constexpr uint32_t kIrisSwitchMs     = kIrisCloseMs + kIrisHoldMs;
+constexpr uint32_t kIrisTransitionMs = kIrisSwitchMs + kIrisOpenMs;
+constexpr uint32_t kIrisHaloStartMs  = kIrisSwitchMs + 40;
+constexpr uint32_t kIrisHaloMs       = 220;
+constexpr uint32_t kFadeMs           = 380;
+
+inline float smoothStep(float t) {
+    if (t <= 0.0f) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    return t * t * (3.0f - 2.0f * t);
+}
 
 inline float irisCover(uint32_t elapsedMs) {
     if (elapsedMs >= kIrisCloseMs) return 0.0f;
-    return 1.0f - ease::outExpo((float)elapsedMs / (float)kIrisCloseMs);
+    return 1.0f - smoothStep((float)elapsedMs / (float)kIrisCloseMs);
 }
 
 inline float irisReveal(uint32_t localOpenMs) {
     if (localOpenMs >= kIrisOpenMs) return 1.0f;
-    return ease::outExpo((float)localOpenMs / (float)kIrisOpenMs);
+    return smoothStep((float)localOpenMs / (float)kIrisOpenMs);
 }
 
 inline float irisHalo(uint32_t elapsedMs) {
@@ -106,13 +113,13 @@ inline float irisHalo(uint32_t elapsedMs) {
     uint32_t local = elapsedMs - kIrisHaloStartMs;
     if (local >= kIrisHaloMs) return 0.0f;
     float t = (float)local / (float)kIrisHaloMs;
-    return t < 0.5f ? ease::outExpo(t * 2.0f)
-                    : 1.0f - ease::outExpo((t - 0.5f) * 2.0f);
+    return t < 0.5f ? smoothStep(t * 2.0f)
+                    : 1.0f - smoothStep((t - 0.5f) * 2.0f);
 }
 
 inline float fadeReveal(uint32_t elapsedMs) {
     if (elapsedMs >= kFadeMs) return 1.0f;
-    return ease::outExpo((float)elapsedMs / (float)kFadeMs);
+    return smoothStep((float)elapsedMs / (float)kFadeMs);
 }
 
 }  // namespace motion
