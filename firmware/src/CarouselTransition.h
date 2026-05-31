@@ -30,6 +30,10 @@ public:
 
     bool isAnimating() const { return active_; }
     bool hasSwitched() const { return switched_; }
+    void cancel() {
+        active_ = false;
+        pendingSwitch_ = false;
+    }
 
     bool consumeSwitch() {
         bool out = pendingSwitch_;
