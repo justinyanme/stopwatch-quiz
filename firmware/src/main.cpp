@@ -321,6 +321,7 @@ static bool applyRefreshRequest(const char *label) {
 }
 
 static void enterSleepAndRefreshOnWake() {
+    g_transition.cancel();
     g_power.enterLightSleep();
     g_app.noteWakeFromSleep();
     g_costLoaded = false;
@@ -513,12 +514,14 @@ void loop() {
         }
     }
 
+    bool sleepPending = g_power.shouldSleep();
     stopwatch::CarouselContext cctx;
     cctx.inSettings = g_app.inCarouselSettings();
     cctx.inBalanceDetail = g_app.inBalanceDetail();
     cctx.touchActive = g_touchActive || (isBalanceView(g_app.currentView()) && !g_balScroll.isResting());
     cctx.loading = g_loading;
     cctx.transitionActive = g_transition.isAnimating();
+    cctx.sleepPending = sleepPending;
     if (g_carousel.shouldAdvance(millis(), g_carouselSettings, cctx)) {
         g_transition.start(millis(), g_carouselSettings.motionMode);
         if (g_carouselSettings.motionMode == CarouselMotionMode::Instant) {
@@ -526,7 +529,7 @@ void loop() {
         }
     }
 
-    if (g_power.shouldSleep()) enterSleepAndRefreshOnWake();
+    if (sleepPending) enterSleepAndRefreshOnWake();
     // While an entrance plays, drop the 50 Hz idle throttle so frames run as
     // fast as the panel can push — the millis()-based clock keeps the timing
     // correct, the extra frames just make the motion smooth. delay(2) still

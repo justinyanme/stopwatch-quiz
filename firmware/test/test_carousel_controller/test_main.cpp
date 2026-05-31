@@ -56,6 +56,9 @@ void test_pauseContextsBlockAdvance(void) {
     ctx = CarouselContext{};
     ctx.transitionActive = true;
     TEST_ASSERT_FALSE(c.shouldAdvance(60000, s, ctx));
+    ctx = CarouselContext{};
+    ctx.sleepPending = true;
+    TEST_ASSERT_FALSE(c.shouldAdvance(60000, s, ctx));
 }
 
 void test_manualAdvanceResetsSchedule(void) {

@@ -10,6 +10,7 @@ struct CarouselContext {
     bool touchActive = false;
     bool loading = false;
     bool transitionActive = false;
+    bool sleepPending = false;
 };
 
 class CarouselController {
@@ -43,7 +44,7 @@ public:
                        const CarouselContext &ctx) const {
         if (!settings.autoplayEnabled) return false;
         if (ctx.inSettings || ctx.inBalanceDetail || ctx.touchActive ||
-            ctx.loading || ctx.transitionActive) {
+            ctx.loading || ctx.transitionActive || ctx.sleepPending) {
             return false;
         }
         if (hasUserActivity_ &&
