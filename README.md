@@ -53,7 +53,21 @@ If `make flash` fails with `Failed to connect to ESP32-S3: No serial data receiv
 | KEYB short | Next view |
 | KEYA long  | Force refresh from Mac |
 | KEYB long  | Sleep display now |
-| 15 s idle  | Auto-sleep |
+| KEYA + KEYB long | Open/close carousel settings |
+| 5 min idle | Sleep display |
+
+## Carousel autoplay
+
+Autoplay is enabled by default while the watch is awake. It advances through the main views every 10 seconds and pauses on any button press, touch scroll, row tap, refresh, loading state, or balance detail. It resumes after the configured quiet period.
+
+Hold KEYA + KEYB to open carousel settings on the watch. KEYB moves between rows, KEYA changes the selected value, KEYA-long resets defaults, and KEYA + KEYB long saves and exits.
+
+Settings:
+
+- Autoplay: On / Off
+- Interval: 5s / 10s / 15s / 30s
+- Motion: Iris / Fade / Instant
+- Resume: 10s / 20s / 30s after input
 
 Status pills under the rings:
 
@@ -116,8 +130,8 @@ Providers without a key-queryable balance API can't be shown — e.g. MiniMax pa
 ## Tests
 
 ```bash
-cd bridge && swift test                              # 48/48 Swift bridge tests
-cd firmware && pio test -e native                    # 26/26 firmware native tests
+cd bridge && swift test                              # Swift bridge tests
+cd firmware && pio test -e native                    # firmware native tests
 ```
 
 Cross-side wire compatibility is locked: both sides round-trip against the same `shared/fixtures/*.hex` files.
