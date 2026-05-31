@@ -69,6 +69,21 @@ void test_manualAdvanceResetsSchedule(void) {
     TEST_ASSERT_TRUE(c.shouldAdvance(25000, s, ctx));
 }
 
+void test_wakeActivityResetsResumeAndIntervalSchedule(void) {
+    CarouselController c;
+    CarouselSettings s = CarouselSettings::defaults();
+    s.intervalSeconds = 30;
+    s.resumeSeconds = 10;
+    c.begin(0, s);
+    CarouselContext ctx;
+
+    c.recordWake(60000);
+
+    TEST_ASSERT_FALSE(c.shouldAdvance(69999, s, ctx));
+    TEST_ASSERT_FALSE(c.shouldAdvance(70000, s, ctx));
+    TEST_ASSERT_TRUE(c.shouldAdvance(90000, s, ctx));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_autoplayAdvancesAfterInterval);
@@ -76,5 +91,6 @@ int main(int, char **) {
     RUN_TEST(test_userActivityDelaysResume);
     RUN_TEST(test_pauseContextsBlockAdvance);
     RUN_TEST(test_manualAdvanceResetsSchedule);
+    RUN_TEST(test_wakeActivityResetsResumeAndIntervalSchedule);
     return UNITY_END();
 }

@@ -329,6 +329,7 @@ static void enterSleepAndRefreshOnWake() {
     g_balScroll.reset();
     applyRefreshRequest("Refreshing\xE2\x80\xA6");
     ensureCostLoaded();
+    g_carousel.recordWake(millis());
     startViewAnim();   // play the entrance on wake
 }
 
@@ -472,7 +473,7 @@ void loop() {
 
     // Touch: only meaningful on the Balances screen; drives the scroll model.
     g_touchActive = false;
-    if (isBalanceView(g_app.currentView())) {
+    if (isBalanceView(g_app.currentView()) && !g_app.inCarouselSettings()) {
         auto t = M5.Touch.getDetail();
         g_touchActive = t.isPressed();
         if (g_app.inBalanceDetail()) {

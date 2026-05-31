@@ -209,6 +209,21 @@ void test_carouselSettingsSleepStillWorks(void) {
     TEST_ASSERT_TRUE(app.inCarouselSettings());
 }
 
+void test_carouselSettingsBlocksBalanceDetailEntry(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::KeyAShort);     // Overview → Balances
+    TEST_ASSERT_EQUAL((int)ViewId::Balances, (int)app.currentView());
+
+    app.handleEvent(ButtonEvent::BothLong, settings);
+    TEST_ASSERT_TRUE(app.inCarouselSettings());
+    app.enterBalanceDetail(1);
+
+    TEST_ASSERT_FALSE(app.inBalanceDetail());
+    TEST_ASSERT_TRUE(app.inCarouselSettings());
+    TEST_ASSERT_EQUAL((int)ViewId::Balances, (int)app.currentView());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_keyBShortCyclesForward);
@@ -227,5 +242,6 @@ int main(int, char **) {
     RUN_TEST(test_carouselSettingsRowsAndValuesChange);
     RUN_TEST(test_carouselSettingsResetDefaults);
     RUN_TEST(test_carouselSettingsSleepStillWorks);
+    RUN_TEST(test_carouselSettingsBlocksBalanceDetailEntry);
     return UNITY_END();
 }

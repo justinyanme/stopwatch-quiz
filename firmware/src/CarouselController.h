@@ -34,6 +34,11 @@ public:
         noteUserActivity(nowMs);
     }
 
+    void recordWake(uint32_t nowMs) {
+        lastAdvanceMs_ = nowMs;
+        noteUserActivity(nowMs);
+    }
+
     bool shouldAdvance(uint32_t nowMs, const CarouselSettings &settings,
                        const CarouselContext &ctx) const {
         if (!settings.autoplayEnabled) return false;

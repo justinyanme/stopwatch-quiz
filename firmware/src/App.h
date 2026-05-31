@@ -39,7 +39,11 @@ public:
 
     bool inBalanceDetail() const { return detailIndex_ >= 0; }
     int  balanceDetailIndex() const { return detailIndex_; }
-    void enterBalanceDetail(int recordIndex) { detailIndex_ = recordIndex; metric_ = UsageMetric::Cost; }
+    void enterBalanceDetail(int recordIndex) {
+        if (inCarouselSettings_) return;
+        detailIndex_ = recordIndex;
+        metric_ = UsageMetric::Cost;
+    }
     void exitBalanceDetail() { detailIndex_ = -1; }
     UsageMetric usageMetric() const { return metric_; }
     bool inCarouselSettings() const { return inCarouselSettings_; }
