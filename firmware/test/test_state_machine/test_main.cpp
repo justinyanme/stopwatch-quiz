@@ -1,6 +1,7 @@
 // firmware/test/test_state_machine/test_main.cpp
 #include <unity.h>
 #include "../../src/App.h"
+#include "../../src/CarouselSettings.h"
 
 using namespace stopwatch;
 
@@ -105,6 +106,53 @@ void test_carouselUnaffectedWhenNotInDetail(void) {
     TEST_ASSERT_FALSE(app.inBalanceDetail());
 }
 
+void test_carouselSettingsDefaultsAndValidation(void) {
+    CarouselSettings s = CarouselSettings::defaults();
+    TEST_ASSERT_TRUE(s.autoplayEnabled);
+    TEST_ASSERT_EQUAL_UINT16(10, s.intervalSeconds);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)s.motionMode);
+    TEST_ASSERT_EQUAL_UINT16(20, s.resumeSeconds);
+
+    CarouselSettings invalid;
+    invalid.autoplayEnabled = true;
+    invalid.intervalSeconds = 7;
+    invalid.motionMode = (CarouselMotionMode)99;
+    invalid.resumeSeconds = 11;
+    invalid.validate();
+
+    TEST_ASSERT_EQUAL_UINT16(10, invalid.intervalSeconds);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)invalid.motionMode);
+    TEST_ASSERT_EQUAL_UINT16(20, invalid.resumeSeconds);
+}
+
+void test_carouselSettingsCyclesValues(void) {
+    CarouselSettings s = CarouselSettings::defaults();
+
+    s.cycle(CarouselSettingRow::Autoplay);
+    TEST_ASSERT_FALSE(s.autoplayEnabled);
+    s.cycle(CarouselSettingRow::Autoplay);
+    TEST_ASSERT_TRUE(s.autoplayEnabled);
+
+    s.cycle(CarouselSettingRow::Interval);
+    TEST_ASSERT_EQUAL_UINT16(15, s.intervalSeconds);
+    s.cycle(CarouselSettingRow::Interval);
+    TEST_ASSERT_EQUAL_UINT16(30, s.intervalSeconds);
+    s.cycle(CarouselSettingRow::Interval);
+    TEST_ASSERT_EQUAL_UINT16(5, s.intervalSeconds);
+
+    s.cycle(CarouselSettingRow::Motion);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Fade, (int)s.motionMode);
+    s.cycle(CarouselSettingRow::Motion);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Instant, (int)s.motionMode);
+    s.cycle(CarouselSettingRow::Motion);
+    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)s.motionMode);
+
+    s.cycle(CarouselSettingRow::Resume);
+    TEST_ASSERT_EQUAL_UINT16(30, s.resumeSeconds);
+    s.cycle(CarouselSettingRow::Resume);
+    TEST_ASSERT_EQUAL_UINT16(10, s.resumeSeconds);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_keyBShortCyclesForward);
@@ -117,5 +165,7 @@ int main(int, char **) {
     RUN_TEST(test_balanceDetailEnterExit);
     RUN_TEST(test_balanceDetailToggle);
     RUN_TEST(test_carouselUnaffectedWhenNotInDetail);
+    RUN_TEST(test_carouselSettingsDefaultsAndValidation);
+    RUN_TEST(test_carouselSettingsCyclesValues);
     return UNITY_END();
 }
