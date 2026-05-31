@@ -1,4 +1,5 @@
 .superpowers/
+.worktrees/
 .agents/
 skills-lock.json
 .DS_Store
@@ -12,4 +13,3 @@ __pycache__/
 
 # Swift Package Manager build artifacts (per-target .build dirs)
 .build/
-
