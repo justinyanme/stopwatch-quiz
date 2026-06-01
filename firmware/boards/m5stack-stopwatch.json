@@ -18,11 +18,11 @@
   "connectivity": ["wifi", "bluetooth"],
   "debug": { "default_tool": "esp-builtin", "onboard_tools": ["esp-builtin"], "openocd_target": "esp32s3.cfg" },
   "frameworks": ["arduino", "espidf"],
-  "name": "M5Stack StopWatch (ESP32-S3, 16MB flash, 8MB PSRAM)",
+  "name": "M5Stack StopWatch (ESP32-S3-PICO-1, 8MB flash, 8MB PSRAM)",
   "upload": {
-    "flash_size": "16MB",
+    "flash_size": "8MB",
     "maximum_ram_size": 327680,
-    "maximum_size": 16777216,
+    "maximum_size": 8388608,
     "require_upload_port": true,
     "speed": 921600
   },
