@@ -2,6 +2,6 @@
 namespace stopwatch {
 
 // Firmware release version (semver). Bump via firmware/tools/bump_version.py.
-inline constexpr char kFirmwareVersion[] = "0.2.0";
+inline constexpr char kFirmwareVersion[] = "0.2.1";
 
 }  // namespace stopwatch
