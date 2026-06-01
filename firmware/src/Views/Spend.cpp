@@ -9,15 +9,6 @@
 namespace stopwatch::views {
 
 namespace {
-const char *labelFor(ProviderID id) {
-    switch (id) {
-        case ProviderID::Codex:  return "CODEX";
-        case ProviderID::Claude: return "CLAUDE";
-        case ProviderID::Gemini: return "GEMINI";
-    }
-    return "?";
-}
-
 struct Pill { const char *label; uint32_t color; };
 Pill pillFor(LinkStatus link, const CostSnapshot &cost) {
     if (link == LinkStatus::NoBridge)            return { "no bridge", theme::kPillInfo };
@@ -240,19 +231,33 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
 
     const CostRecord *r = cost.find(id);
 
-    // Header: brand mark + top model.
+    // Header: brand mark + provider name. The hero below is the all-models today
+    // total, so labelling it with one model misreads as that model's cost; the
+    // models actually used today get their own line beneath.
     {
         c.setFont(theme::kFontTitle);
-        const char *model = (r && r->topModel[0]) ? r->topModel : labelFor(id);
-        int tw = c.textWidth(model);
+        const char *name = displayName(id);
+        int tw = c.textWidth(name);
         int totalW = icons::kSize28 + 8 + tw;
         int leftX = theme::kCenterX - totalW / 2;
         c.drawBitmap(leftX, theme::kCenterY - 100 - icons::kSize28 / 2,
                      icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
         c.setTextDatum(middle_left);
         c.setTextColor(theme::kTextMuted);
-        c.drawString(model, leftX + icons::kSize28 + 8, theme::kCenterY - 100);
+        c.drawString(name, leftX + icons::kSize28 + 8, theme::kCenterY - 100);
         c.setTextDatum(middle_center);
+    }
+
+    // Models used today, token-ordered (e.g. "opus-4-8 · sonnet-4-6 · haiku-4-5"),
+    // "+N" if more were used than carried. Muted caption between name and hero.
+    // y is provisional — confirm on-device it clears the name and the hero.
+    if (r && r->modelCount > 0) {
+        char modelsLine[64];
+        costModelsLine(*r, modelsLine, sizeof(modelsLine));
+        c.setFont(theme::kFontMicro);
+        c.setTextColor(theme::kTextMuted);
+        c.setTextDatum(middle_center);
+        c.drawString(modelsLine, theme::kCenterX, theme::kCenterY - 70);
     }
 
     // "waiting for Mac" is only honest when there's truly nothing yet. A record
