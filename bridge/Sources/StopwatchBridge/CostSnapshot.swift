@@ -19,17 +19,17 @@ public struct NormalizedCost: Equatable, Sendable {
         public var monthCostUSD: Double?
         public var todayTokens: UInt64?
         public var monthTokens: UInt64?
-        public var topModel: String?          // display label from CodexBar; encoder shortens to 12 chars
+        public var models: [String]           // today's models, token-ordered, full names (encoder shortens). count = total distinct.
         public var history: [Double]          // dense, length 30, USD/day, index 29 = capturedAt day
 
         public init(providerID: ProviderID, todayCostUSD: Double?, monthCostUSD: Double?,
-                    todayTokens: UInt64?, monthTokens: UInt64?, topModel: String?, history: [Double]) {
+                    todayTokens: UInt64?, monthTokens: UInt64?, models: [String], history: [Double]) {
             self.providerID = providerID
             self.todayCostUSD = todayCostUSD
             self.monthCostUSD = monthCostUSD
             self.todayTokens = todayTokens
             self.monthTokens = monthTokens
-            self.topModel = topModel
+            self.models = models
             self.history = history
         }
     }

@@ -9,15 +9,6 @@
 namespace stopwatch::views {
 
 namespace {
-const char *labelFor(ProviderID id) {
-    switch (id) {
-        case ProviderID::Codex:  return "CODEX";
-        case ProviderID::Claude: return "CLAUDE";
-        case ProviderID::Gemini: return "GEMINI";
-    }
-    return "?";
-}
-
 struct Pill { const char *label; uint32_t color; };
 Pill pillFor(LinkStatus link, const CostSnapshot &cost) {
     if (link == LinkStatus::NoBridge)            return { "no bridge", theme::kPillInfo };
@@ -169,7 +160,7 @@ void drawTotalSpend(Renderer &renderer, const CostSnapshot &cost, LinkStatus lin
         drawMoneyHero(c, heroCents, theme::kCenterX, 118, theme::kTextPrimary);
         c.setFont(theme::kFontBody);
         c.setTextColor(theme::kTextMuted);
-        c.drawString("today", theme::kCenterX, 154);
+        c.drawString("today", theme::kCenterX, 166);
 
         // Per-provider breakdown: readable ledger rows, each in its provider's color.
         // (Replaces the old micro-font split line — the part that was hard to read.)
@@ -240,18 +231,20 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
 
     const CostRecord *r = cost.find(id);
 
-    // Header: brand mark + top model.
+    // Header: brand mark + provider name. The hero below is the all-models today
+    // total, so the header stays the provider name only — labelling it with one
+    // model would misread as that single model's cost.
     {
         c.setFont(theme::kFontTitle);
-        const char *model = (r && r->topModel[0]) ? r->topModel : labelFor(id);
-        int tw = c.textWidth(model);
+        const char *name = displayName(id);
+        int tw = c.textWidth(name);
         int totalW = icons::kSize28 + 8 + tw;
         int leftX = theme::kCenterX - totalW / 2;
         c.drawBitmap(leftX, theme::kCenterY - 100 - icons::kSize28 / 2,
                      icons::bitmap28(id), icons::kSize28, icons::kSize28, color);
         c.setTextDatum(middle_left);
         c.setTextColor(theme::kTextMuted);
-        c.drawString(model, leftX + icons::kSize28 + 8, theme::kCenterY - 100);
+        c.drawString(name, leftX + icons::kSize28 + 8, theme::kCenterY - 100);
         c.setTextDatum(middle_center);
     }
 
@@ -271,14 +264,14 @@ void drawProviderCost(Renderer &renderer, const CostSnapshot &cost, ProviderID i
         // we still surface today's token activity so the screen isn't a dead end.
         if (r->todayCents) {
             uint32_t heroCents = (uint32_t)(r->todayCents.value() * motion::countUp(e) + 0.5f);
-            drawMoneyHero(c, heroCents, theme::kCenterX, theme::kCenterY - 44, color);
+            drawMoneyHero(c, heroCents, theme::kCenterX, theme::kCenterY - 54, color);
             c.setFont(theme::kFontBody);
             c.setTextColor(theme::kTextMuted);
             c.drawString("today", theme::kCenterX, theme::kCenterY - 2);
         } else {
             c.setFont(theme::kFontUnit);
             c.setTextColor(theme::kTextMuted);
-            c.drawString("\xE2\x80\x94", theme::kCenterX, theme::kCenterY - 44);  // em dash
+            c.drawString("\xE2\x80\x94", theme::kCenterX, theme::kCenterY - 54);  // em dash
             char sub[28];
             if (r->todayTokens) {
                 char tk[16]; humanizeTokens(r->todayTokens.value(), tk, sizeof(tk));

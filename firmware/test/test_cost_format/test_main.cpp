@@ -1,6 +1,7 @@
 #include <unity.h>
 #include <cstring>
 #include "../../src/CostFormat.h"
+#include "../../src/CostCodec.h"
 
 using namespace stopwatch;
 
@@ -21,9 +22,62 @@ void test_humanizeTokens(void) {
     humanizeTokens(500, buf, sizeof(buf));       TEST_ASSERT_EQUAL_STRING("500", buf);
 }
 
+void test_costModelsLine(void) {
+    char buf[64];
+
+    CostRecord r{};
+    r.modelCount = 3;
+    strcpy(r.models[0], "opus-4-8");
+    strcpy(r.models[1], "sonnet-4-6");
+    strcpy(r.models[2], "haiku-4-5");
+    costModelsLine(r, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("opus-4-8 \xC2\xB7 sonnet-4-6 \xC2\xB7 haiku-4-5", buf);
+
+    CostRecord more{};
+    more.modelCount = 5;                 // used more than the 3 carried → "+2"
+    strcpy(more.models[0], "opus-4-8");
+    strcpy(more.models[1], "sonnet-4-6");
+    strcpy(more.models[2], "haiku-4-5");
+    costModelsLine(more, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("opus-4-8 \xC2\xB7 sonnet-4-6 \xC2\xB7 haiku-4-5 +2", buf);
+
+    CostRecord one{};
+    one.modelCount = 1;
+    strcpy(one.models[0], "gpt-5.5");
+    costModelsLine(one, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("gpt-5.5", buf);
+
+    CostRecord none{};
+    costModelsLine(none, buf, sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+}
+
+void test_costModelsLineTruncatesWithinBuffer(void) {
+    CostRecord r{};
+    r.modelCount = 3;
+    strcpy(r.models[0], "opus-4-8");
+    strcpy(r.models[1], "sonnet-4-6");
+    strcpy(r.models[2], "haiku-4-5");
+
+    char tiny[5];
+    costModelsLine(r, tiny, sizeof(tiny));
+    TEST_ASSERT_EQUAL_STRING("opus", tiny);
+
+    char one[1];
+    one[0] = 'x';
+    costModelsLine(r, one, sizeof(one));
+    TEST_ASSERT_EQUAL_STRING("", one);
+
+    char untouched = 'x';
+    costModelsLine(r, &untouched, 0);
+    TEST_ASSERT_EQUAL('x', untouched);
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_formatDollars);
     RUN_TEST(test_humanizeTokens);
+    RUN_TEST(test_costModelsLine);
+    RUN_TEST(test_costModelsLineTruncatesWithinBuffer);
     return UNITY_END();
 }

@@ -39,9 +39,12 @@ CostDecodeResult decodeCostSnapshot(const uint8_t *bytes, size_t len, CostSnapsh
         rec.monthCents  = optU32(r + 6);
         rec.todayTokens = optU32(r + 10);
         rec.monthTokens = optU32(r + 14);
-        memcpy(rec.topModel, r + 18, 12);
-        rec.topModel[12] = '\0';
-        memcpy(rec.history, r + 30, kCostHistoryDays);
+        rec.modelCount  = r[18];
+        for (int m = 0; m < kCostMaxModelSlots; ++m) {
+            memcpy(rec.models[m], r + 19 + m * 12, 12);
+            rec.models[m][12] = '\0';
+        }
+        memcpy(rec.history, r + 55, kCostHistoryDays);
     }
     return CostDecodeResult::Ok;
 }

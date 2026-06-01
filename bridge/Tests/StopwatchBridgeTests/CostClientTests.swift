@@ -27,12 +27,16 @@ import Testing
         #expect(hist.reduce(0, +) == 130.0)
     }
 
-    @Test func picksHighestCostModel() {
-        let model = CodexbarClient.topModel(from: [
-            ["gpt-5.5": 10.0, "gpt-4": 1.0],
-            ["gpt-5.5": 5.0],
+    @Test func ordersLatestDayModelsByTokens() {
+        let models = CodexbarClient.latestDayModelsByTokens(from: [
+            ("2026-05-30", ["opus-4-8": 1_500_000, "sonnet-4-6": 400_000, "haiku-4-5": 100_000]),
+            ("2026-05-29", ["older-model": 9_999_999]),
         ])
-        #expect(model == "gpt-5.5")
+        #expect(models == ["opus-4-8", "sonnet-4-6", "haiku-4-5"])
+    }
+
+    @Test func latestDayModelsEmptyWhenNoDatedModels() {
+        #expect(CodexbarClient.latestDayModelsByTokens(from: []).isEmpty)
     }
 
     @Test func detectsCancellationButNotRealFailures() {

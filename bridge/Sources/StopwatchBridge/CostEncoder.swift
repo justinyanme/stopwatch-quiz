@@ -3,7 +3,7 @@ import Foundation
 
 public enum CostEncoder {
 
-    /// Encodes normalized cost into the `12 + 60*N` byte CostSnapshot wire format.
+    /// Encodes normalized cost into the `12 + 85*N` byte CostSnapshot wire format.
     /// See `shared/PROTOCOL.md §3A`.
     public static func encode(_ cost: NormalizedCost) -> Data {
         let unitCents = sharedUnitCents(cost.providers)
@@ -26,7 +26,7 @@ public enum CostEncoder {
             appendU32(&out, centsOrUnknown(p.monthCostUSD))
             appendU32(&out, tokensOrUnknown(p.todayTokens))
             appendU32(&out, tokensOrUnknown(p.monthTokens))
-            appendModel(&out, p.topModel)
+            appendModels(&out, p.models)
             appendHistory(&out, p.history, unitCents: unitCents)
         }
         return out
@@ -88,13 +88,16 @@ public enum CostEncoder {
         return tokens >= UInt64(UInt32.max) ? 0xFFFF_FFFE : UInt32(tokens)
     }
 
-    private static func appendModel(_ out: inout Data, _ name: String?) {
-        var field = [UInt8](repeating: 0, count: 12)
-        if let name {
-            let bytes = Array(shortenModel(name).utf8.prefix(11))
-            for (i, b) in bytes.enumerated() { field[i] = b }
+    private static func appendModels(_ out: inout Data, _ models: [String]) {
+        out.append(UInt8(min(models.count, 255)))   // total count for +N overflow
+        for i in 0..<Protocol.costMaxModelSlots {
+            var field = [UInt8](repeating: 0, count: 12)
+            if i < models.count {
+                let bytes = Array(shortenModel(models[i]).utf8.prefix(11))
+                for (j, b) in bytes.enumerated() { field[j] = b }
+            }
+            out.append(contentsOf: field)
         }
-        out.append(contentsOf: field)
     }
 
     private static func appendHistory(_ out: inout Data, _ history: [Double], unitCents: UInt16) {

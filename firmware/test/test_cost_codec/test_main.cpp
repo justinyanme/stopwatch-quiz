@@ -23,12 +23,12 @@ static std::vector<uint8_t> readHexFixture(const char *name) {
 
 void test_costFixtureDecodes(void) {
     auto bytes = readHexFixture("codexbar-cost-two");
-    TEST_ASSERT_EQUAL(132, bytes.size());
+    TEST_ASSERT_EQUAL(182, bytes.size());
 
     CostSnapshot cs;
     auto rc = decodeCostSnapshot(bytes.data(), bytes.size(), cs);
     TEST_ASSERT_EQUAL((int)CostDecodeResult::Ok, (int)rc);
-    TEST_ASSERT_EQUAL(1, cs.versionMajor);
+    TEST_ASSERT_EQUAL(2, cs.versionMajor);
     TEST_ASSERT_EQUAL(2, cs.recordCount);
     TEST_ASSERT_EQUAL(30, cs.historyDays);
     TEST_ASSERT_EQUAL(48, cs.historyUnitCents);
@@ -40,12 +40,17 @@ void test_costFixtureDecodes(void) {
     TEST_ASSERT_EQUAL(30000, codex->monthCents.value());
     TEST_ASSERT_EQUAL(1000000, codex->todayTokens.value());
     TEST_ASSERT_EQUAL(100000000, codex->monthTokens.value());
-    TEST_ASSERT_EQUAL_STRING("gpt-5.5", codex->topModel);
+    TEST_ASSERT_EQUAL(1, codex->modelCount);
+    TEST_ASSERT_EQUAL_STRING("gpt-5.5", codex->models[0]);
+    TEST_ASSERT_EQUAL_STRING("", codex->models[1]);
     TEST_ASSERT_EQUAL(250, codex->history[29]);
 
     const CostRecord *claude = cs.find(ProviderID::Claude);
     TEST_ASSERT_NOT_NULL(claude);
-    TEST_ASSERT_EQUAL_STRING("opus-4-7", claude->topModel);
+    TEST_ASSERT_EQUAL(3, claude->modelCount);
+    TEST_ASSERT_EQUAL_STRING("opus-4-8", claude->models[0]);
+    TEST_ASSERT_EQUAL_STRING("sonnet-4-6", claude->models[1]);
+    TEST_ASSERT_EQUAL_STRING("haiku-4-5", claude->models[2]);
     TEST_ASSERT_EQUAL(125, claude->history[29]);
 
     TEST_ASSERT_NULL(cs.find(ProviderID::Gemini));

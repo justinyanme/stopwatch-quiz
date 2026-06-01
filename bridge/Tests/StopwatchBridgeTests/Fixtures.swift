@@ -109,10 +109,11 @@ extension NormalizedCost {
             providers: [
                 .init(providerID: .codex,  todayCostUSD: 12.0, monthCostUSD: 300.0,
                       todayTokens: 1_000_000, monthTokens: 100_000_000,
-                      topModel: "gpt-5.5", history: codexHist),
+                      models: ["gpt-5.5"], history: codexHist),
                 .init(providerID: .claude, todayCostUSD: 8.0,  monthCostUSD: 200.0,
                       todayTokens: 2_000_000, monthTokens: 50_000_000,
-                      topModel: "claude-opus-4-7", history: claudeHist),
+                      models: ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"],
+                      history: claudeHist),
             ]
         )
     }

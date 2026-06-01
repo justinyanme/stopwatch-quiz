@@ -12,7 +12,8 @@ struct CostRecord {
     std::optional<uint32_t> monthCents;
     std::optional<uint32_t> todayTokens;
     std::optional<uint32_t> monthTokens;
-    char topModel[13] = {0};              // 12 wire bytes + null terminator
+    uint8_t modelCount = 0;                        // total distinct models today (for +N overflow)
+    char    models[kCostMaxModelSlots][13] = {};   // token-ordered; 12 wire bytes + null each
     uint8_t history[kCostHistoryDays] = {0};
 };
 
