@@ -6,8 +6,8 @@
     "last30DaysCostUSD": 300.0,
     "last30DaysTokens": 100000000,
     "daily": [
-      { "date": "2026-05-29", "totalCost": 120.0, "modelBreakdowns": [ { "modelName": "gpt-5.5", "cost": 120.0 } ] },
-      { "date": "2026-05-27", "totalCost": 10.0,  "modelBreakdowns": [ { "modelName": "gpt-5.5", "cost": 10.0 } ] }
+      { "date": "2026-05-29", "totalCost": 120.0, "modelBreakdowns": [ { "modelName": "gpt-5.5", "cost": 120.0, "totalTokens": 1000000 } ] },
+      { "date": "2026-05-27", "totalCost": 10.0,  "modelBreakdowns": [ { "modelName": "gpt-5.5", "cost": 10.0, "totalTokens": 80000 } ] }
     ]
   },
   {
@@ -17,7 +17,11 @@
     "last30DaysCostUSD": 200.0,
     "last30DaysTokens": 50000000,
     "daily": [
-      { "date": "2026-05-29", "totalCost": 60.0, "modelBreakdowns": [ { "modelName": "claude-opus-4-7", "cost": 60.0 } ] }
+      { "date": "2026-05-29", "totalCost": 60.0, "modelBreakdowns": [
+        { "modelName": "claude-opus-4-8",   "cost": 50.0, "totalTokens": 1500000 },
+        { "modelName": "claude-sonnet-4-6", "cost": 8.0,  "totalTokens": 400000 },
+        { "modelName": "claude-haiku-4-5",  "cost": 2.0,  "totalTokens": 100000 }
+      ] }
     ]
   }
 ]

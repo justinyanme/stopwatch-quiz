@@ -18,10 +18,11 @@ public enum Protocol {
     public static let snapshotSize     = headerSize + perProviderSize * providerCount  // 56
 
     public static let costSnapshotUUID = CBUUID(string: "33FAAC2D-3935-467F-A0A0-899CE2306366")
-    public static let costVersionMajor: UInt8 = 1
+    public static let costVersionMajor: UInt8 = 2
     public static let costVersionMinor: UInt8 = 0
     public static let costHeaderSize    = 12
-    public static let costRecordSize    = 60
+    public static let costRecordSize    = 85
+    public static let costMaxModelSlots = 3
     public static let costHistoryDays   = 30
     public static let triggerScopeCost: UInt8 = 0x04
 

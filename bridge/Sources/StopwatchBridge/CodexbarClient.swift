@@ -157,9 +157,11 @@ public actor CodexbarClient {
             guard let id = ProviderID(fromString: c.provider) else { return nil }
             let daily = c.daily ?? []
             let dailyPairs = daily.map { (date: $0.date, costUSD: $0.totalCost ?? 0) }
-            let breakdowns = daily.map { day -> (date: String, models: [String: Double]) in
-                var m: [String: Double] = [:]
-                for b in day.modelBreakdowns ?? [] { m[b.modelName, default: 0] += b.cost ?? 0 }
+            let tokenDays = daily.map { day -> (date: String, models: [String: UInt64]) in
+                var m: [String: UInt64] = [:]
+                for b in day.modelBreakdowns ?? [] {
+                    m[b.modelName, default: 0] += UInt64(max(0, (b.totalTokens ?? 0).rounded()))
+                }
                 return (date: day.date, models: m)
             }
             return .init(
@@ -168,7 +170,7 @@ public actor CodexbarClient {
                 monthCostUSD: c.last30DaysCostUSD,
                 todayTokens:  c.sessionTokens.map { UInt64(max(0, $0.rounded())) },
                 monthTokens:  c.last30DaysTokens.map { UInt64(max(0, $0.rounded())) },
-                topModel:     Self.displayModel(from: breakdowns),
+                models:       Self.latestDayModelsByTokens(from: tokenDays),
                 history:      Self.alignDailyHistory(dailyPairs, anchor: now,
                                                      days: Protocol.costHistoryDays)
             )
@@ -191,7 +193,7 @@ public actor CodexbarClient {
             var date: String
             var totalCost: Double?
             var modelBreakdowns: [ModelBreakdown]?
-            struct ModelBreakdown: Decodable { var modelName: String; var cost: Double? }
+            struct ModelBreakdown: Decodable { var modelName: String; var cost: Double?; var totalTokens: Double? }
         }
     }
 
@@ -211,12 +213,14 @@ public actor CodexbarClient {
         return out
     }
 
-    /// Returns the model label to show on the watch cost detail header. Prefer
-    /// the newest dated CodexBar daily record so newly active models show up
-    /// promptly; fall back to the 30-day top model if dates are missing.
-    static func displayModel(from daily: [(date: String, models: [String: Double])]) -> String? {
+    /// Models used on the newest dated daily record, ordered by today's tokens
+    /// (descending), ties broken by model name ascending. Empty if no dated day
+    /// has model tokens. Token order surfaces the dominant model first — including
+    /// one codexbar hasn't priced yet, since the breakdown carries `totalTokens`
+    /// even when `cost` is null.
+    static func latestDayModelsByTokens(from daily: [(date: String, models: [String: UInt64])]) -> [String] {
         var latestDay: Date?
-        var latestModels: [String: Double] = [:]
+        var latestModels: [String: UInt64] = [:]
 
         for day in daily {
             guard !day.models.isEmpty, let date = costDay(day.date) else { continue }
@@ -225,7 +229,7 @@ public actor CodexbarClient {
                     latestDay = date
                     latestModels = day.models
                 } else if date == currentLatest {
-                    for (name, cost) in day.models { latestModels[name, default: 0] += cost }
+                    for (name, tokens) in day.models { latestModels[name, default: 0] += tokens }
                 }
             } else {
                 latestDay = date
@@ -233,20 +237,9 @@ public actor CodexbarClient {
             }
         }
 
-        if !latestModels.isEmpty {
-            return topModel(from: [latestModels])
-        }
-        return topModel(from: daily.map(\.models))
-    }
-
-    /// Sums cost per model across daily breakdowns, returns the highest-cost model name.
-    static func topModel(from breakdowns: [[String: Double]]) -> String? {
-        var totals: [String: Double] = [:]
-        for day in breakdowns {
-            for (name, cost) in day { totals[name, default: 0] += cost }
-        }
-        // Deterministic: highest total cost, ties broken by model name (ascending).
-        return totals.sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }.first?.key
+        return latestModels
+            .sorted { a, b in a.value != b.value ? a.value > b.value : a.key < b.key }
+            .map(\.key)
     }
 
     private static func costDay(_ value: String) -> Date? {

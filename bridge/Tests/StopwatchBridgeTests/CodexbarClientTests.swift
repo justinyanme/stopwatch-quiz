@@ -97,11 +97,11 @@ import Testing
         #expect(codex.monthCostUSD == 300.0)
         #expect(codex.todayTokens == 1_000_000)
         #expect(codex.monthTokens == 100_000_000)
-        #expect(codex.topModel == "gpt-5.5")
+        #expect(codex.models == ["gpt-5.5"])
         #expect(codex.history.count == 30)
         #expect(codex.history[29] == 120.0)
         #expect(codex.history[27] == 10.0)
-        #expect(cost.providers[1].topModel == "claude-opus-4-7")  // full name; encoder shortens
+        #expect(cost.providers[1].models == ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5"])  // token-ordered; encoder shortens
         #expect(cost.providers[1].history[29] == 60.0)
     }
 
@@ -115,9 +115,9 @@ import Testing
           "last30DaysTokens": 301000,
           "daily": [
             { "date": "2026-05-30", "totalCost": 1.0,
-              "modelBreakdowns": [ { "modelName": "latest-daily-model", "cost": 1.0 } ] },
+              "modelBreakdowns": [ { "modelName": "latest-daily-model", "cost": 1.0, "totalTokens": 1000 } ] },
             { "date": "2026-05-29", "totalCost": 300.0,
-              "modelBreakdowns": [ { "modelName": "older-cost-heavy-model", "cost": 300.0 } ] }
+              "modelBreakdowns": [ { "modelName": "older-cost-heavy-model", "cost": 300.0, "totalTokens": 9000000 } ] }
           ]
         }]
         """.utf8)
@@ -127,7 +127,7 @@ import Testing
         let cost = try await client.fetchCost(scope: .all, now: utcDate("2026-05-30"))
 
         #expect(cost.providers.count == 1)
-        #expect(cost.providers[0].topModel == "latest-daily-model")
+        #expect(cost.providers[0].models == ["latest-daily-model"])  // newest dated day wins, not the token-heavy older one
     }
 
     @Test func emptyCostArraySetsUnavailable() async throws {
