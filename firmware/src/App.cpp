@@ -10,13 +10,13 @@ void App::begin() {
     detailIndex_ = -1;
     metric_ = UsageMetric::Cost;
     inCarouselSettings_ = false;
-    settingRow_ = CarouselSettingRow::Autoplay;
+    settingRow_ = CarouselSettingRow::Upright;
 }
 
 bool App::handleEvent(ButtonEvent ev, CarouselSettings &settings) {
     if (ev == ButtonEvent::BothLong) {
         inCarouselSettings_ = !inCarouselSettings_;
-        settingRow_ = CarouselSettingRow::Autoplay;
+        settingRow_ = CarouselSettingRow::Upright;
         settings.validate();
         return true;
     }

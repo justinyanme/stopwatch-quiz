@@ -108,18 +108,21 @@ void test_carouselUnaffectedWhenNotInDetail(void) {
 
 void test_carouselSettingsDefaultsAndValidation(void) {
     CarouselSettings s = CarouselSettings::defaults();
+    TEST_ASSERT_FALSE(s.uprightEnabled);
     TEST_ASSERT_TRUE(s.autoplayEnabled);
     TEST_ASSERT_EQUAL_UINT16(10, s.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)s.motionMode);
     TEST_ASSERT_EQUAL_UINT16(20, s.resumeSeconds);
 
     CarouselSettings invalid;
+    invalid.uprightEnabled = true;
     invalid.autoplayEnabled = true;
     invalid.intervalSeconds = 7;
     invalid.motionMode = (CarouselMotionMode)99;
     invalid.resumeSeconds = 11;
     invalid.validate();
 
+    TEST_ASSERT_TRUE(invalid.uprightEnabled);
     TEST_ASSERT_EQUAL_UINT16(10, invalid.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)invalid.motionMode);
     TEST_ASSERT_EQUAL_UINT16(20, invalid.resumeSeconds);
@@ -127,6 +130,11 @@ void test_carouselSettingsDefaultsAndValidation(void) {
 
 void test_carouselSettingsCyclesValues(void) {
     CarouselSettings s = CarouselSettings::defaults();
+
+    s.cycle(CarouselSettingRow::Upright);
+    TEST_ASSERT_TRUE(s.uprightEnabled);
+    s.cycle(CarouselSettingRow::Upright);
+    TEST_ASSERT_FALSE(s.uprightEnabled);
 
     s.cycle(CarouselSettingRow::Autoplay);
     TEST_ASSERT_FALSE(s.autoplayEnabled);
@@ -161,7 +169,7 @@ void test_bothLongEntersAndExitsCarouselSettings(void) {
     bool changed = app.handleEvent(ButtonEvent::BothLong, settings);
     TEST_ASSERT_TRUE(changed);
     TEST_ASSERT_TRUE(app.inCarouselSettings());
-    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
 
     changed = app.handleEvent(ButtonEvent::BothLong, settings);
     TEST_ASSERT_TRUE(changed);
@@ -173,16 +181,18 @@ void test_carouselSettingsRowsAndValuesChange(void) {
     CarouselSettings settings = CarouselSettings::defaults();
     app.handleEvent(ButtonEvent::BothLong, settings);
 
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_TRUE(settings.uprightEnabled);
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_FALSE(settings.autoplayEnabled);
+
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
     TEST_ASSERT_EQUAL((int)CarouselSettingRow::Interval, (int)app.carouselSettingRow());
-
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
     TEST_ASSERT_EQUAL_UINT16(15, settings.intervalSeconds);
-
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
-    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Motion, (int)app.carouselSettingRow());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
-    TEST_ASSERT_EQUAL((int)CarouselMotionMode::Fade, (int)settings.motionMode);
 }
 
 void test_carouselSettingsResetDefaults(void) {
@@ -190,9 +200,10 @@ void test_carouselSettingsResetDefaults(void) {
     CarouselSettings settings = CarouselSettings::defaults();
     app.handleEvent(ButtonEvent::BothLong, settings);
     app.handleEvent(ButtonEvent::KeyAShort, settings);
-    TEST_ASSERT_FALSE(settings.autoplayEnabled);
+    TEST_ASSERT_TRUE(settings.uprightEnabled);
 
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyALong, settings));
+    TEST_ASSERT_FALSE(settings.uprightEnabled);
     TEST_ASSERT_TRUE(settings.autoplayEnabled);
     TEST_ASSERT_EQUAL_UINT16(10, settings.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)settings.motionMode);
@@ -212,7 +223,7 @@ void test_carouselSettingsSleepStillWorks(void) {
 void test_carouselSettingsBlocksBalanceDetailEntry(void) {
     App app; app.begin();
     CarouselSettings settings = CarouselSettings::defaults();
-    app.handleEvent(ButtonEvent::KeyAShort);     // Overview → Balances
+    app.handleEvent(ButtonEvent::KeyAShort);     // Overview -> Balances
     TEST_ASSERT_EQUAL((int)ViewId::Balances, (int)app.currentView());
 
     app.handleEvent(ButtonEvent::BothLong, settings);
