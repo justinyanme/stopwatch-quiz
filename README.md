@@ -53,16 +53,20 @@ If `make flash` fails with `Failed to connect to ESP32-S3: No serial data receiv
 | KEYB short | Next view |
 | KEYA long  | Force refresh from Mac |
 | KEYB long  | Sleep display now |
-| KEYA + KEYB long | Open/close carousel settings |
+| KEYA + KEYB long | Open/close local settings |
 | 5 min idle | Sleep display |
 
 ## Carousel autoplay
 
 Autoplay is enabled by default while the watch is awake. It advances through the main views every 10 seconds and pauses on any button press, touch scroll, row tap, refresh, loading state, or balance detail. It resumes after the configured quiet period.
 
-Hold KEYA + KEYB to open carousel settings on the watch. KEYB moves between rows, KEYA changes the selected value, KEYA-long resets defaults, and KEYA + KEYB long saves and exits.
+Hold KEYA + KEYB to open local settings on the watch. KEYB moves between rows, KEYA changes the selected value, KEYA-long resets defaults, and KEYA + KEYB long saves and exits.
 
-Settings:
+Display setting:
+
+- Upright: Off / On. When enabled, the watch uses its IMU to keep the UI upright at 0/90/180/270 degree rotations while awake. It is off by default and does not keep the display awake.
+
+Carousel settings:
 
 - Autoplay: On / Off
 - Interval: 5s / 10s / 15s / 30s

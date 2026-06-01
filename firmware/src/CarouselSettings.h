@@ -4,15 +4,22 @@
 namespace stopwatch {
 
 enum class CarouselMotionMode : uint8_t { Iris = 0, Fade = 1, Instant = 2 };
-enum class CarouselSettingRow : uint8_t { Autoplay = 0, Interval = 1, Motion = 2, Resume = 3 };
+enum class CarouselSettingRow : uint8_t {
+    Upright = 0,
+    Autoplay = 1,
+    Interval = 2,
+    Motion = 3,
+    Resume = 4,
+};
 
 struct CarouselSettings {
+    bool uprightEnabled = false;
     bool autoplayEnabled = true;
     uint16_t intervalSeconds = 10;
     CarouselMotionMode motionMode = CarouselMotionMode::Iris;
     uint16_t resumeSeconds = 20;
 
-    static constexpr uint8_t kRowCount = 4;
+    static constexpr uint8_t kRowCount = 5;
 
     static CarouselSettings defaults() { return CarouselSettings{}; }
 
@@ -30,6 +37,9 @@ struct CarouselSettings {
 
     void cycle(CarouselSettingRow row) {
         switch (row) {
+            case CarouselSettingRow::Upright:
+                uprightEnabled = !uprightEnabled;
+                break;
             case CarouselSettingRow::Autoplay:
                 autoplayEnabled = !autoplayEnabled;
                 break;
@@ -47,6 +57,7 @@ struct CarouselSettings {
 
     static const char *rowLabel(CarouselSettingRow row) {
         switch (row) {
+            case CarouselSettingRow::Upright:  return "UPRIGHT";
             case CarouselSettingRow::Autoplay: return "AUTOPLAY";
             case CarouselSettingRow::Interval: return "INTERVAL";
             case CarouselSettingRow::Motion:   return "MOTION";
@@ -102,12 +113,13 @@ private:
 
 inline CarouselSettingRow nextSettingRow(CarouselSettingRow row) {
     switch (row) {
+        case CarouselSettingRow::Upright:  return CarouselSettingRow::Autoplay;
         case CarouselSettingRow::Autoplay: return CarouselSettingRow::Interval;
         case CarouselSettingRow::Interval: return CarouselSettingRow::Motion;
         case CarouselSettingRow::Motion:   return CarouselSettingRow::Resume;
-        case CarouselSettingRow::Resume:   return CarouselSettingRow::Autoplay;
+        case CarouselSettingRow::Resume:   return CarouselSettingRow::Upright;
     }
-    return CarouselSettingRow::Autoplay;
+    return CarouselSettingRow::Upright;
 }
 
 }  // namespace stopwatch
