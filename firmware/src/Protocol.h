@@ -25,12 +25,13 @@ constexpr uint8_t kFlagProviderMissing = 0b00000100;
 
 constexpr const char *kCostSnapshotUUID = "33FAAC2D-3935-467F-A0A0-899CE2306366";
 
-constexpr uint8_t  kCostVersionMajor    = 1;
+constexpr uint8_t  kCostVersionMajor    = 2;
 constexpr uint8_t  kCostHeaderSize      = 12;
-constexpr uint8_t  kCostRecordSize      = 60;
+constexpr uint8_t  kCostRecordSize      = 85;
 constexpr uint8_t  kCostHistoryDays     = 30;
+constexpr uint8_t  kCostMaxModelSlots   = 3;
 constexpr uint8_t  kCostMaxRecords      = 2;   // codex, claude
-constexpr uint16_t kCostSnapshotMaxSize = kCostHeaderSize + kCostRecordSize * kCostMaxRecords;  // 132
+constexpr uint16_t kCostSnapshotMaxSize = kCostHeaderSize + kCostRecordSize * kCostMaxRecords;  // 182
 
 constexpr uint8_t kCostFlagStale       = 0b00000001;
 constexpr uint8_t kCostFlagBridgeError = 0b00000010;
