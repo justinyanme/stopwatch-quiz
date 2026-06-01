@@ -1,10 +1,11 @@
-.PHONY: help build test install pair flash monitor clean bump-patch bump-minor bump-major
+.PHONY: help build test install restart pair flash monitor clean bump-patch bump-minor bump-major
 
 help:
 	@echo "Targets:"
 	@echo "  build           Build bridge (swift build -c release)"
 	@echo "  test            Run bridge tests + firmware native tests"
 	@echo "  install         Install bridge as launchd agent"
+	@echo "  restart         Restart the running bridge launchd agent (kickstart)"
 	@echo "  pair            Run bridge in foreground (verbose) to see the watch connect"
 	@echo "  flash           Flash firmware to a connected M5Stack StopWatch"
 	@echo "  monitor         Open serial monitor on the watch"
@@ -23,6 +24,9 @@ test:
 
 install: build
 	./bridge/.build/release/stopwatch-bridge install
+
+restart:
+	launchctl kickstart -k "gui/$$(id -u)/dev.stopwatch.bridge"
 
 pair: build
 	./bridge/.build/release/stopwatch-bridge pair
