@@ -1,4 +1,5 @@
 // firmware/src/SnapshotStore.cpp
+#include "SettingsCodec.h"
 #include "SnapshotStore.h"
 #include <Preferences.h>
 
@@ -8,15 +9,6 @@ namespace {
 Preferences prefs;
 constexpr const char *kNs = "swq";
 constexpr const char *kCarouselSettingsKey = "carousel";
-
-struct StoredCarouselSettings {
-    uint8_t version;
-    uint8_t autoplayEnabled;
-    uint8_t motionMode;
-    uint8_t reserved;
-    uint16_t intervalSeconds;
-    uint16_t resumeSeconds;
-};
 }
 
 void SnapshotStore::begin() {
@@ -38,31 +30,19 @@ void SnapshotStore::save(const char *key, const uint8_t *bytes, size_t len) {
 
 bool SnapshotStore::loadCarouselSettings(CarouselSettings &out) {
     if (!open_) return false;
-    StoredCarouselSettings stored{};
+    uint8_t bytes[kSettingsBytesSize];
     size_t sz = prefs.getBytesLength(kCarouselSettingsKey);
-    if (sz != sizeof(stored)) return false;
-    size_t read = prefs.getBytes(kCarouselSettingsKey, &stored, sizeof(stored));
-    if (read != sizeof(stored) || stored.version != 1) return false;
-
-    out.autoplayEnabled = stored.autoplayEnabled != 0;
-    out.motionMode = (CarouselMotionMode)stored.motionMode;
-    out.intervalSeconds = stored.intervalSeconds;
-    out.resumeSeconds = stored.resumeSeconds;
-    out.validate();
-    return true;
+    if (sz != sizeof(bytes)) return false;
+    size_t read = prefs.getBytes(kCarouselSettingsKey, bytes, sizeof(bytes));
+    return decodeCarouselSettings(bytes, read, out);
 }
 
 void SnapshotStore::saveCarouselSettings(const CarouselSettings &settings) {
     if (!open_) return;
-    CarouselSettings copy = settings;
-    copy.validate();
-    StoredCarouselSettings stored{};
-    stored.version = 1;
-    stored.autoplayEnabled = copy.autoplayEnabled ? 1 : 0;
-    stored.motionMode = (uint8_t)copy.motionMode;
-    stored.intervalSeconds = copy.intervalSeconds;
-    stored.resumeSeconds = copy.resumeSeconds;
-    prefs.putBytes(kCarouselSettingsKey, &stored, sizeof(stored));
+    uint8_t bytes[kSettingsBytesSize];
+    size_t len = 0;
+    if (!encodeCarouselSettings(settings, bytes, sizeof(bytes), len)) return;
+    prefs.putBytes(kCarouselSettingsKey, bytes, len);
 }
 
 }  // namespace stopwatch
