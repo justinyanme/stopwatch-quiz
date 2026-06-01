@@ -13,6 +13,16 @@ bool finiteSample(OrientationSample s) {
     return std::isfinite(s.ax) && std::isfinite(s.ay) && std::isfinite(s.az);
 }
 
+DisplayOrientation rotateClockwise(DisplayOrientation orientation) {
+    switch (orientation) {
+        case DisplayOrientation::Deg0:   return DisplayOrientation::Deg90;
+        case DisplayOrientation::Deg90:  return DisplayOrientation::Deg180;
+        case DisplayOrientation::Deg180: return DisplayOrientation::Deg270;
+        case DisplayOrientation::Deg270: return DisplayOrientation::Deg0;
+    }
+    return DisplayOrientation::Deg0;
+}
+
 bool candidateFromSample(OrientationSample s,
                          DisplayOrientation fallback,
                          DisplayOrientation &out) {
@@ -28,12 +38,12 @@ bool candidateFromSample(OrientationSample s,
     float absY = std::fabs(s.ay);
 
     if (absX > absY + kAxisHysteresisMargin) {
-        out = s.ax >= 0.0f ? DisplayOrientation::Deg90 : DisplayOrientation::Deg270;
+        out = rotateClockwise(s.ax >= 0.0f ? DisplayOrientation::Deg90 : DisplayOrientation::Deg270);
         return true;
     }
 
     if (absY > absX + kAxisHysteresisMargin) {
-        out = s.ay >= 0.0f ? DisplayOrientation::Deg180 : DisplayOrientation::Deg0;
+        out = rotateClockwise(s.ay >= 0.0f ? DisplayOrientation::Deg180 : DisplayOrientation::Deg0);
         return true;
     }
 
