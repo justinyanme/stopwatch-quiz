@@ -11,7 +11,7 @@ constexpr uint32_t kRowFill = 0x0C1218;
 constexpr uint32_t kSelectedFill = 0x141D28;
 constexpr int kRowX = 68;
 constexpr int kRowW = 330;
-constexpr int kRowH = 46;
+constexpr int kRowH = 40;
 constexpr int kRowR = 8;
 
 const char *valueText(const CarouselSettings &settings, CarouselSettingRow row,
@@ -31,6 +31,13 @@ const char *valueText(const CarouselSettings &settings, CarouselSettingRow row,
             return buf;
     }
     return "?";
+}
+
+void drawGroup(M5Canvas &c, const char *label, int y) {
+    c.setFont(theme::kFontMicro);
+    c.setTextDatum(middle_left);
+    c.setTextColor(theme::kTextMuted);
+    c.drawString(label, kRowX + 4, y);
 }
 
 void drawRow(M5Canvas &c, const CarouselSettings &settings, CarouselSettingRow row,
@@ -65,18 +72,22 @@ void drawCarouselSettings(Renderer &renderer, const CarouselSettings &settings,
     c.drawString("LOCAL", theme::kCenterX, 34);
     c.setFont(theme::kFontTitle);
     c.setTextColor(theme::kTextPrimary);
-    c.drawString("CAROUSEL", theme::kCenterX, 60);
+    c.drawString("SETTINGS", theme::kCenterX, 60);
 
-    drawRow(c, settings, CarouselSettingRow::Upright, selected, 112);
-    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 161);
-    drawRow(c, settings, CarouselSettingRow::Interval, selected, 210);
-    drawRow(c, settings, CarouselSettingRow::Motion, selected, 259);
-    drawRow(c, settings, CarouselSettingRow::Resume, selected, 308);
+    drawGroup(c, "DISPLAY", 96);
+    drawRow(c, settings, CarouselSettingRow::Upright, selected, 124);
 
+    drawGroup(c, "CAROUSEL", 166);
+    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 194);
+    drawRow(c, settings, CarouselSettingRow::Interval, selected, 240);
+    drawRow(c, settings, CarouselSettingRow::Motion, selected, 286);
+    drawRow(c, settings, CarouselSettingRow::Resume, selected, 332);
+
+    c.setTextDatum(middle_center);
     c.setFont(theme::kFontMicro);
     c.setTextColor(theme::kTextMuted);
-    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 366);
-    c.drawString("A+B HOLD SAVE", theme::kCenterX, 392);
+    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 388);
+    c.drawString("A+B HOLD SAVE", theme::kCenterX, 414);
 }
 
 }  // namespace stopwatch::views
