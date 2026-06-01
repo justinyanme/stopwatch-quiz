@@ -8,6 +8,8 @@
 namespace stopwatch {
 
 void Renderer::begin() {
+    M5.Display.setRotation((uint8_t)DisplayOrientation::Deg0);
+    orientation_ = DisplayOrientation::Deg0;
     sprite_.setColorDepth(16);
     sprite_.setPsram(true);
     sprite_.createSprite(M5.Display.width(), M5.Display.height());
@@ -16,6 +18,12 @@ void Renderer::begin() {
 
 void Renderer::clear(uint32_t color) {
     sprite_.fillSprite(color);
+}
+
+void Renderer::setOrientation(DisplayOrientation orientation) {
+    if (orientation_ == orientation) return;
+    orientation_ = orientation;
+    M5.Display.setRotation((uint8_t)orientation_);
 }
 
 void Renderer::present() {

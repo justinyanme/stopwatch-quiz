@@ -1,6 +1,7 @@
 // firmware/src/Renderer.h
 #pragma once
 #include <M5Unified.h>
+#include "OrientationController.h"
 
 namespace stopwatch {
 
@@ -11,6 +12,8 @@ public:
     M5Canvas &canvas() { return sprite_; }
     void present();   // pushSprite to display
     void clear(uint32_t color = 0x000000);
+    void setOrientation(DisplayOrientation orientation);
+    DisplayOrientation orientation() const { return orientation_; }
 
     /// Draws an arc from -90° (top of circle) clockwise by `fillFraction` of 360°.
     /// fillFraction in [0.0, 1.0]. Track is drawn underneath.
@@ -24,6 +27,7 @@ public:
     void drawPill(int cx, int cy, const char *label, uint32_t color);
 
 private:
+    DisplayOrientation orientation_ = DisplayOrientation::Deg0;
     M5Canvas sprite_{&M5.Display};
 };
 

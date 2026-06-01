@@ -8,6 +8,7 @@
 #include "CarouselController.h"
 #include "CarouselSettings.h"
 #include "CarouselTransition.h"
+#include "OrientationController.h"
 #include "Power.h"
 #include "Renderer.h"
 #include "SnapshotCodec.h"
@@ -48,6 +49,12 @@ stopwatch::CarouselSettings   g_carouselSettings;
 stopwatch::CarouselController g_carousel;
 stopwatch::CarouselTransition g_transition;
 static bool                   g_loading = false;
+stopwatch::OrientationController g_orientation;
+static uint32_t                  g_nextOrientationPollMs = 0;
+static uint8_t                   g_orientationReadFailures = 0;
+static bool                      g_orientationRuntimeDisabled = false;
+static constexpr uint32_t        kOrientationPollMs = 50;
+static constexpr uint8_t         kMaxOrientationReadFailures = 5;
 
 struct LoadingScope {
     LoadingScope() { g_loading = true; }
@@ -152,6 +159,47 @@ static void renderTransitionFrame() {
         drawFadeMask(motion::fadeReveal(g_transition.elapsed()));
     }
     g_renderer.present();
+}
+
+static void resetOrientationRuntime(uint32_t now) {
+    g_orientation.reset(now, stopwatch::DisplayOrientation::Deg0);
+    g_renderer.setOrientation(stopwatch::DisplayOrientation::Deg0);
+    g_nextOrientationPollMs = now;
+    g_orientationReadFailures = 0;
+    g_orientationRuntimeDisabled = false;
+}
+
+static void renderAfterOrientationCommit() {
+    if (g_transition.isAnimating()) {
+        renderTransitionFrame();
+    } else {
+        renderCurrent();
+    }
+}
+
+static void pollOrientation(uint32_t now) {
+    if (!g_carouselSettings.uprightEnabled || g_orientationRuntimeDisabled) return;
+    if ((int32_t)(now - g_nextOrientationPollMs) < 0) return;
+    g_nextOrientationPollMs = now + kOrientationPollMs;
+
+    float ax = 0.0f;
+    float ay = 0.0f;
+    float az = 0.0f;
+    if (!M5.Imu.getAccel(&ax, &ay, &az)) {
+        if (g_orientationReadFailures < 255) ++g_orientationReadFailures;
+        if (g_orientationReadFailures >= kMaxOrientationReadFailures) {
+            g_orientationRuntimeDisabled = true;
+            Serial.println("[stopwatch-fw] IMU accel unavailable; upright disabled for this boot");
+        }
+        return;
+    }
+
+    g_orientationReadFailures = 0;
+    stopwatch::OrientationSample sample{ax, ay, az};
+    if (g_orientation.tick(now, sample)) {
+        g_renderer.setOrientation(g_orientation.committed());
+        renderAfterOrientationCommit();
+    }
 }
 
 // Entrance length per view: ring views charge up outer→inner; spend views grow
@@ -323,6 +371,7 @@ static bool applyRefreshRequest(const char *label) {
 static void enterSleepAndRefreshOnWake() {
     g_transition.cancel();
     g_power.enterLightSleep();
+    resetOrientationRuntime(millis());
     g_app.noteWakeFromSleep();
     g_costLoaded = false;
     g_balanceLoaded = false;
@@ -376,6 +425,8 @@ void setup() {
                   (int)M5.getBoard(), M5.Display.width(), M5.Display.height());
     Serial.println("[stopwatch-fw] starting renderer.begin (PSRAM sprite alloc)");
     g_renderer.begin();
+    g_orientation.begin(millis(), stopwatch::DisplayOrientation::Deg0);
+    g_renderer.setOrientation(stopwatch::DisplayOrientation::Deg0);
     Serial.println("[stopwatch-fw] renderer ready; init store/app/power/ble");
     g_store.begin();
     if (!g_store.loadCarouselSettings(g_carouselSettings)) {
@@ -430,7 +481,11 @@ void loop() {
         g_power.noteActivity();
         g_transition.cancel();
         bool wasInSettings = g_app.inCarouselSettings();
+        bool wasUprightEnabled = g_carouselSettings.uprightEnabled;
         bool changed = g_app.handleEvent(ev, g_carouselSettings);
+        if (wasUprightEnabled != g_carouselSettings.uprightEnabled) {
+            resetOrientationRuntime(millis());
+        }
         if (wasInSettings && !g_app.inCarouselSettings()) {
             g_store.saveCarouselSettings(g_carouselSettings);
         }
@@ -456,6 +511,8 @@ void loop() {
             }
         }
     }
+
+    pollOrientation(millis());
 
     if (g_transition.isAnimating()) {
         g_transition.tick(millis());
