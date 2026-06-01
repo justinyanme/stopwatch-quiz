@@ -17,6 +17,8 @@ constexpr int kRowR = 8;
 const char *valueText(const CarouselSettings &settings, CarouselSettingRow row,
                       char *buf, size_t n) {
     switch (row) {
+        case CarouselSettingRow::Upright:
+            return settings.uprightEnabled ? "ON" : "OFF";
         case CarouselSettingRow::Autoplay:
             return settings.autoplayEnabled ? "ON" : "OFF";
         case CarouselSettingRow::Interval:
@@ -65,10 +67,11 @@ void drawCarouselSettings(Renderer &renderer, const CarouselSettings &settings,
     c.setTextColor(theme::kTextPrimary);
     c.drawString("CAROUSEL", theme::kCenterX, 60);
 
-    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 126);
-    drawRow(c, settings, CarouselSettingRow::Interval, selected, 182);
-    drawRow(c, settings, CarouselSettingRow::Motion, selected, 238);
-    drawRow(c, settings, CarouselSettingRow::Resume, selected, 294);
+    drawRow(c, settings, CarouselSettingRow::Upright, selected, 112);
+    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 161);
+    drawRow(c, settings, CarouselSettingRow::Interval, selected, 210);
+    drawRow(c, settings, CarouselSettingRow::Motion, selected, 259);
+    drawRow(c, settings, CarouselSettingRow::Resume, selected, 308);
 
     c.setFont(theme::kFontMicro);
     c.setTextColor(theme::kTextMuted);

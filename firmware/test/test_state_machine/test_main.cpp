@@ -195,6 +195,24 @@ void test_carouselSettingsRowsAndValuesChange(void) {
     TEST_ASSERT_EQUAL_UINT16(15, settings.intervalSeconds);
 }
 
+void test_carouselSettingsRowsCycleThroughAllRows(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::BothLong, settings);
+
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Interval, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Motion, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Resume, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
+}
+
 void test_carouselSettingsResetDefaults(void) {
     App app; app.begin();
     CarouselSettings settings = CarouselSettings::defaults();
@@ -251,6 +269,7 @@ int main(int, char **) {
     RUN_TEST(test_carouselSettingsCyclesValues);
     RUN_TEST(test_bothLongEntersAndExitsCarouselSettings);
     RUN_TEST(test_carouselSettingsRowsAndValuesChange);
+    RUN_TEST(test_carouselSettingsRowsCycleThroughAllRows);
     RUN_TEST(test_carouselSettingsResetDefaults);
     RUN_TEST(test_carouselSettingsSleepStillWorks);
     RUN_TEST(test_carouselSettingsBlocksBalanceDetailEntry);
