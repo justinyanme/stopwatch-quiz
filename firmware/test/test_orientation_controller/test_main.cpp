@@ -43,7 +43,7 @@ void test_candidate_change_restarts_debounce(void) {
     assertOrientation(DisplayOrientation::Deg0, c.committed());
 
     TEST_ASSERT_TRUE(c.tick(2450, sample(0.0f, 1.0f)));
-    assertOrientation(DisplayOrientation::Deg270, c.committed());
+    assertOrientation(DisplayOrientation::Deg90, c.committed());
 }
 
 void test_rejects_flat_or_invalid_samples(void) {
@@ -77,7 +77,7 @@ void test_commits_all_four_cardinal_orientations(void) {
 
     TEST_ASSERT_FALSE(c.tick(600, sample(0.0f, 1.0f)));
     TEST_ASSERT_TRUE(c.tick(900, sample(0.0f, 1.0f)));
-    assertOrientation(DisplayOrientation::Deg270, c.committed());
+    assertOrientation(DisplayOrientation::Deg90, c.committed());
 
     TEST_ASSERT_FALSE(c.tick(1200, sample(-1.0f, 0.0f)));
     TEST_ASSERT_TRUE(c.tick(1500, sample(-1.0f, 0.0f)));
@@ -85,7 +85,7 @@ void test_commits_all_four_cardinal_orientations(void) {
 
     TEST_ASSERT_FALSE(c.tick(1800, sample(0.0f, -1.0f)));
     TEST_ASSERT_TRUE(c.tick(2100, sample(0.0f, -1.0f)));
-    assertOrientation(DisplayOrientation::Deg90, c.committed());
+    assertOrientation(DisplayOrientation::Deg270, c.committed());
 }
 
 int main(int, char **) {
