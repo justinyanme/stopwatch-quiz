@@ -82,13 +82,13 @@ All integers little-endian. Total size for v1.0 with 3 providers = 8 + 3×16 = *
 
 ## 3A. `CostSnapshot` payload (binary)
 
-Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All integers little-endian. Size = `12 + 60 × recordCount`. Codex + Claude ⇒ **132 bytes**. Gemini has no `/cost` data and is omitted.
+Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All integers little-endian. Size = `12 + 85 × recordCount`. Codex + Claude ⇒ **182 bytes**. Gemini has no `/cost` data and is omitted.
 
 ### 3A.1 Header (12 bytes)
 
 | Offset | Type | Field | Meaning |
 |---|---|---|---|
-| 0 | uint8 | `versionMajor` | `0x01`. |
+| 0 | uint8 | `versionMajor` | `0x02`. |
 | 1 | uint8 | `versionMinor` | `0x00`. |
 | 2 | uint8 | `recordCount` | Number of cost records (0–2 today). |
 | 3 | uint8 | `flags` | bit0 stale, bit1 bridge_error, bit2 cost_unavailable. |
@@ -97,7 +97,7 @@ Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All inte
 | 9 | uint8 | `reserved` | `0`. |
 | 10 | uint16 | `historyUnitCents` | Shared scale: cents per history unit (≥1). |
 
-### 3A.2 Per-record (60 bytes, repeated `recordCount` times)
+### 3A.2 Per-record (85 bytes, repeated `recordCount` times)
 
 | Offset | Type | Field | Meaning |
 |---|---|---|---|
@@ -107,8 +107,11 @@ Independent of `UsageSnapshot`; its own `(versionMajor, versionMinor)`. All inte
 | 6 | uint32 | `monthCostCents` | `0xFFFFFFFF` = unknown. |
 | 10 | uint32 | `todayTokens` | `0xFFFFFFFF` = unknown. |
 | 14 | uint32 | `monthTokens` | `0xFFFFFFFF` = unknown. |
-| 18 | char[12] | `topModel` | UTF-8, null-padded, vendor-prefix-stripped. Bridge chooses the newest dated daily model from CodexBar, falling back to the 30-day highest-cost model if dates are unavailable. |
-| 30 | uint8[30] | `history` | Oldest→newest; index 29 = `capturedAt` day; `round(dayCents / historyUnitCents)`. |
+| 18 | uint8 | `modelCount` | Total distinct models on the latest dated day (drives `+N` overflow). |
+| 19 | char[12] | `models[0]` | Top model by today's tokens. UTF-8, null-padded, vendor-prefix-stripped. |
+| 31 | char[12] | `models[1]` | 2nd by tokens; all-zero if absent. |
+| 43 | char[12] | `models[2]` | 3rd by tokens; all-zero if absent. |
+| 55 | uint8[30] | `history` | Oldest→newest; index 29 = `capturedAt` day; `round(dayCents / historyUnitCents)`. |
 
 History is normalized on one shared scale so the watch can sum providers for the combined burn chart.
 
