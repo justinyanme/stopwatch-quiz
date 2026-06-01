@@ -4,6 +4,26 @@
 
 namespace stopwatch {
 
+namespace {
+
+void appendBounded(char *buf, size_t bufSize, const char *suffix) {
+    if (bufSize == 0) return;
+
+    size_t used = 0;
+    while (used < bufSize && buf[used] != '\0') {
+        ++used;
+    }
+
+    if (used == bufSize) {
+        buf[bufSize - 1] = '\0';
+        return;
+    }
+
+    snprintf(buf + used, bufSize - used, "%s", suffix);
+}
+
+}  // namespace
+
 void formatDollars(uint32_t cents, char *buf, size_t bufSize, bool twoDecimals) {
     if (twoDecimals) {
         snprintf(buf, bufSize, "$%u.%02u", cents / 100, cents % 100);
@@ -24,15 +44,15 @@ void costModelsLine(const CostRecord &r, char *buf, size_t bufSize) {
     int shown = 0;
     for (int i = 0; i < kCostMaxModelSlots; ++i) {
         if (r.models[i][0] == '\0') break;
-        if (shown > 0) strlcat(buf, " \xC2\xB7 ", bufSize);  // " · "
-        strlcat(buf, r.models[i], bufSize);
+        if (shown > 0) appendBounded(buf, bufSize, " \xC2\xB7 ");  // " · "
+        appendBounded(buf, bufSize, r.models[i]);
         ++shown;
     }
     int extra = (int)r.modelCount - shown;
     if (extra > 0) {
         char tail[8];
         snprintf(tail, sizeof(tail), " +%d", extra);
-        strlcat(buf, tail, bufSize);
+        appendBounded(buf, bufSize, tail);
     }
 }
 
