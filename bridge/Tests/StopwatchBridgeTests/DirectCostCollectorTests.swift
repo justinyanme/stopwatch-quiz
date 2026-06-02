@@ -32,4 +32,14 @@ import Testing
         #expect(provider.monthTokens == 1000)
         #expect(provider.models == ["gpt-5.5"])
     }
+
+    // Regression: the bridge must scan into its OWN cache dir, not share
+    // CodexBar.app's cost-usage cache (different producer key => mutual
+    // invalidation + cold rescans on every poll).
+    @Test func cacheRootIsBridgePrivate() {
+        let path = DirectCostCollector.cacheRoot.path
+        #expect(path.contains("stopwatch-bridge"))
+        #expect(path.hasSuffix("cost-usage"))
+        #expect(!path.contains("CodexBar"))
+    }
 }

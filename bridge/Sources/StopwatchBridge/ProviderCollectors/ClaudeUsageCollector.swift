@@ -10,14 +10,14 @@ public struct ClaudeUsageCollector: Sendable {
     }
 
     public static func decodeOAuthUsage(_ data: Data) throws -> NormalizedUsage.Provider {
-        let raw = try JSONDecoder.iso8601.decode(RawOAuthUsage.self, from: data)
+        let raw = try JSONDecoder().decode(RawOAuthUsage.self, from: data)
         return .init(
             providerID: .claude,
             status: .ok,
             sessionPct: raw.fiveHour?.usedPercent.map(percentByte),
             weekPct: raw.sevenDay?.usedPercent.map(percentByte),
-            sessionResetAt: raw.fiveHour?.resetsAt,
-            weekResetAt: raw.sevenDay?.resetsAt,
+            sessionResetAt: CollectorDate.parseISO8601(raw.fiveHour?.resetsAt),
+            weekResetAt: CollectorDate.parseISO8601(raw.sevenDay?.resetsAt),
             credits: nil,
             plan: ProviderPlan(fromString: raw.subscriptionType)
         )
@@ -59,7 +59,7 @@ public struct ClaudeUsageCollector: Sendable {
         }
         struct Window: Decodable {
             var usedPercent: Double?
-            var resetsAt: Date?
+            var resetsAt: String?
             enum CodingKeys: String, CodingKey {
                 case usedPercent = "used_percent"
                 case resetsAt = "resets_at"

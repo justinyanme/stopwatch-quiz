@@ -22,6 +22,14 @@ enum DirectCostProvider: Sendable {
 public struct DirectCostCollector: Sendable {
     public init() {}
 
+    /// The bridge keeps its own cost-scan cache, separate from CodexBar.app's
+    /// `~/Library/Caches/<CodexBar>/cost-usage`. Sharing that directory while
+    /// using a different cache producer key (see CostUsageShims.CodexParserHash)
+    /// makes the two processes mutually invalidate and cold-rescan on every poll.
+    static let cacheRoot: URL = FileManager.default
+        .urls(for: .cachesDirectory, in: .userDomainMask).first!
+        .appendingPathComponent("stopwatch-bridge/cost-usage", isDirectory: true)
+
     public func fetchAll(now: Date = Date()) async -> NormalizedCost {
         var providers: [NormalizedCost.Provider] = []
         if let codex = try? await fetch(.codex, now: now) { providers.append(codex) }
@@ -37,7 +45,7 @@ public struct DirectCostCollector: Sendable {
     }
 
     func loadSnapshot(provider: DirectCostProvider, now: Date) async throws -> CostUsageTokenSnapshot {
-        try await CostUsageFetcher().loadTokenSnapshot(
+        try await CostUsageFetcher(cacheRoot: Self.cacheRoot).loadTokenSnapshot(
             provider: provider.usageProvider,
             now: now,
             historyDays: Protocol.costHistoryDays,

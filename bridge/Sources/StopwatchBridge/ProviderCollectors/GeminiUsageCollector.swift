@@ -10,7 +10,7 @@ public struct GeminiUsageCollector: Sendable {
     }
 
     public static func decodeQuotaResponse(_ data: Data) throws -> NormalizedUsage.Provider {
-        let raw = try JSONDecoder.iso8601.decode(RawQuota.self, from: data)
+        let raw = try JSONDecoder().decode(RawQuota.self, from: data)
         let pro = raw.quotaBuckets.filter { $0.modelId.lowercased().contains("pro") }
             .min { ($0.remainingFraction ?? 1) < ($1.remainingFraction ?? 1) }
         let flash = raw.quotaBuckets.filter { $0.modelId.lowercased().contains("flash") }
@@ -20,8 +20,8 @@ public struct GeminiUsageCollector: Sendable {
             status: .ok,
             sessionPct: pro?.remainingFraction.map { percentUsedFromRemaining($0) },
             weekPct: flash?.remainingFraction.map { percentUsedFromRemaining($0) },
-            sessionResetAt: pro?.resetTime,
-            weekResetAt: flash?.resetTime,
+            sessionResetAt: CollectorDate.parseISO8601(pro?.resetTime),
+            weekResetAt: CollectorDate.parseISO8601(flash?.resetTime),
             credits: nil,
             plan: plan(from: raw.tier)
         )
@@ -67,7 +67,7 @@ public struct GeminiUsageCollector: Sendable {
         struct Bucket: Decodable {
             var modelId: String
             var remainingFraction: Double?
-            var resetTime: Date?
+            var resetTime: String?
         }
     }
 }
