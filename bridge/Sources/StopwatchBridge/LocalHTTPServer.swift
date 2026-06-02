@@ -6,6 +6,7 @@ import Glibc
 #endif
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
+private let requestHeaderLimitBytes = 16 * 1024
 
 public struct HTTPRequest: Sendable {
     public var method: String
@@ -140,6 +141,13 @@ public final class LocalHTTPServer: @unchecked Sendable {
         task = nil
     }
 
+    static func parseForTesting(_ data: Data) -> HTTPRequest? {
+        guard case let .success(parsedRequest) = parseRequestData(data) else {
+            return nil
+        }
+        return parsedRequest.request
+    }
+
     private static func runLoop(host: String, port: UInt16, handler: @escaping Handler) async throws {
         ignoreSIGPIPE()
 
@@ -223,7 +231,7 @@ private struct ParsedHTTPRequest {
         let parts = firstLine.split(separator: " ")
         guard parts.count >= 3 else { return .failure(.invalidRequest) }
 
-        let method = String(parts[0]).uppercased()
+        let method = String(parts[0])
         let target = String(parts[1])
         guard target.hasPrefix("/") else { return .failure(.invalidRequest) }
 
@@ -267,6 +275,15 @@ private enum HTTPRequestParseError: Error, Equatable {
     case invalidRequest
 }
 
+private func parseRequestData(_ data: Data) -> Result<ParsedHTTPRequest, HTTPRequestParseError> {
+    guard let headerEnd = data.range(of: Data("\r\n\r\n".utf8)),
+          headerEnd.upperBound <= requestHeaderLimitBytes
+    else {
+        return .failure(.invalidRequest)
+    }
+    return ParsedHTTPRequest.parse(data)
+}
+
 private func handleClient(
     _ clientFD: Int32,
     handler: @Sendable (HTTPRequest) async -> HTTPResponse) async
@@ -292,12 +309,14 @@ private func readRequest(_ fd: Int32) -> Result<ParsedHTTPRequest, HTTPRequestPa
     let bufferSize = buffer.count
     var sawHeaderEnd = false
 
-    while data.count < 16384 {
+    while data.count < requestHeaderLimitBytes {
         guard waitForReadable(fd, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
             return .failure(.invalidRequest)
         }
+        let remainingCapacity = requestHeaderLimitBytes - data.count
+        let readSize = min(bufferSize, remainingCapacity)
         let count = buffer.withUnsafeMutableBytes { rawBuffer in
-            recv(fd, rawBuffer.baseAddress, bufferSize, 0)
+            recv(fd, rawBuffer.baseAddress, readSize, 0)
         }
         guard count > 0 else { break }
         data.append(buffer, count: count)
@@ -308,7 +327,7 @@ private func readRequest(_ fd: Int32) -> Result<ParsedHTTPRequest, HTTPRequestPa
     }
 
     guard sawHeaderEnd else { return .failure(.invalidRequest) }
-    return ParsedHTTPRequest.parse(data)
+    return parseRequestData(data)
 }
 
 private func sendResponse(_ response: HTTPResponse, to fd: Int32) {

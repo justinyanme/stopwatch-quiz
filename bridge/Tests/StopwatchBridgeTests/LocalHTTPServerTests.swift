@@ -47,4 +47,44 @@ import Testing
         #expect(response.status == .accepted)
         #expect(box.scopes == [4])
     }
+
+    @Test func parserPreservesIncomingMethodCase() {
+        let request = LocalHTTPServer.parseForTesting(requestData("get /v1/health HTTP/1.1"))
+
+        #expect(request?.method == "get")
+    }
+
+    @Test func parserSplitsPathAndQueryWithLastDuplicateValueWinning() {
+        let request = LocalHTTPServer.parseForTesting(
+            requestData("POST /v1/refresh?scope=4&scope=5&name=a%20b HTTP/1.1"))
+
+        #expect(request?.path == "/v1/refresh")
+        #expect(request?.query["scope"] == "5")
+        #expect(request?.query["name"] == "a b")
+    }
+
+    @Test func parserRejectsHeaderTerminatorAfterReadCap() {
+        let prefix = "GET /v1/health HTTP/1.1\r\nHost: localhost\r\nX-Fill: "
+        let filler = String(repeating: "a", count: 16_384 - prefix.utf8.count + 1)
+        let data = Data((prefix + filler + "\r\n\r\n").utf8)
+
+        #expect(LocalHTTPServer.parseForTesting(data) == nil)
+    }
+
+    @Test func parserLowercasesHeaderNames() {
+        let request = LocalHTTPServer.parseForTesting(
+            requestData("GET /v1/snapshot HTTP/1.1", headers: ["Authorization": "Bearer secret"]))
+
+        #expect(request?.headers["authorization"] == "Bearer secret")
+        #expect(request?.headers["Authorization"] == nil)
+    }
+
+    private func requestData(_ firstLine: String, headers: [String: String] = ["Host": "localhost"]) -> Data {
+        var raw = firstLine + "\r\n"
+        for (name, value) in headers {
+            raw += "\(name): \(value)\r\n"
+        }
+        raw += "\r\n"
+        return Data(raw.utf8)
+    }
 }
