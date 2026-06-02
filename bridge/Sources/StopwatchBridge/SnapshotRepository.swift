@@ -19,10 +19,10 @@ public actor SnapshotRepository {
         balances: Data = BalanceEncoder.staleEmpty(),
         balanceUsage: Data = UsageEncoder.staleEmpty())
     {
-        self.snapshot = snapshot
-        self.cost = cost
-        self.balances = balances
-        self.balanceUsage = balanceUsage
+        self.snapshot = Self.isValid(snapshot, for: .snapshot) ? snapshot : SnapshotEncoder.staleEmpty()
+        self.cost = Self.isValid(cost, for: .cost) ? cost : CostEncoder.staleEmpty()
+        self.balances = Self.isValid(balances, for: .balances) ? balances : BalanceEncoder.staleEmpty()
+        self.balanceUsage = Self.isValid(balanceUsage, for: .balanceUsage) ? balanceUsage : UsageEncoder.staleEmpty()
     }
 
     public func bytes(for kind: SnapshotKind) -> Data {
@@ -49,11 +49,47 @@ public actor SnapshotRepository {
         case .snapshot:
             return bytes.count == Protocol.snapshotSize
         case .cost:
-            return bytes.count >= Protocol.costHeaderSize
+            return isValidVariableFrame(
+                bytes,
+                headerSize: Protocol.costHeaderSize,
+                recordSize: Protocol.costRecordSize,
+                versionMajor: Protocol.costVersionMajor,
+                versionMinor: Protocol.costVersionMinor)
         case .balances:
-            return bytes.count >= Protocol.balanceHeaderSize
+            return isValidVariableFrame(
+                bytes,
+                headerSize: Protocol.balanceHeaderSize,
+                recordSize: Protocol.balanceRecordSize,
+                versionMajor: Protocol.balanceVersionMajor,
+                versionMinor: Protocol.balanceVersionMinor,
+                maxRecords: Protocol.balanceMaxRecords)
         case .balanceUsage:
-            return bytes.count >= Protocol.usageHeaderSize
+            return isValidVariableFrame(
+                bytes,
+                headerSize: Protocol.usageHeaderSize,
+                recordSize: Protocol.usageRecordSize,
+                versionMajor: Protocol.usageVersionMajor,
+                versionMinor: Protocol.usageVersionMinor,
+                maxRecords: Protocol.usageMaxRecords)
         }
+    }
+
+    private static func isValidVariableFrame(
+        _ bytes: Data,
+        headerSize: Int,
+        recordSize: Int,
+        versionMajor: UInt8,
+        versionMinor: UInt8,
+        maxRecords: Int? = nil
+    ) -> Bool {
+        guard bytes.count >= headerSize else { return false }
+        guard bytes[0] == versionMajor && bytes[1] == versionMinor else { return false }
+
+        let recordCount = Int(bytes[2])
+        if let maxRecords, recordCount > maxRecords {
+            return false
+        }
+
+        return bytes.count == headerSize + recordSize * recordCount
     }
 }
