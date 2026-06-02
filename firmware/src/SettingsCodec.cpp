@@ -25,7 +25,7 @@ bool encodeCarouselSettings(const CarouselSettings &settings,
                             size_t capacity,
                             size_t &outLen) {
     outLen = 0;
-    if (!outBytes || capacity < kSettingsBytesSize) return false;
+    if (!outBytes || capacity < kSettingsV3BytesSize) return false;
 
     CarouselSettings copy = settings;
     copy.validate();
@@ -50,6 +50,8 @@ bool decodeCarouselSettings(const uint8_t *bytes,
                             size_t len,
                             CarouselSettings &out) {
     if (!bytes) return false;
+    if (len != kSettingsV2BytesSize && len != kSettingsV3BytesSize) return false;
+
     uint8_t version = bytes[0];
     if (version == kVersion1 || version == kVersion2) {
         if (len != kSettingsV2BytesSize) return false;

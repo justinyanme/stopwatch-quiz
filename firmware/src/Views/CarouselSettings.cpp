@@ -9,8 +9,8 @@ namespace {
 constexpr uint32_t kSettingsBg = 0x05080C;
 constexpr uint32_t kRowFill = 0x0C1218;
 constexpr uint32_t kSelectedFill = 0x141D28;
-constexpr int kRowX = 68;
-constexpr int kRowW = 330;
+constexpr int kRowX = 104;
+constexpr int kRowW = 258;
 constexpr int kRowH = 40;
 constexpr int kRowR = 8;
 
@@ -76,23 +76,23 @@ void drawCarouselSettings(Renderer &renderer, const CarouselSettings &settings,
     c.setTextColor(theme::kTextPrimary);
     c.drawString("SETTINGS", theme::kCenterX, 60);
 
-    drawGroup(c, "CONNECTION", 96);
-    drawRow(c, settings, CarouselSettingRow::Transport, selected, 124);
+    drawGroup(c, "CONNECTION", 88);
+    drawRow(c, settings, CarouselSettingRow::Transport, selected, 112);
 
-    drawGroup(c, "DISPLAY", 166);
-    drawRow(c, settings, CarouselSettingRow::Upright, selected, 194);
+    drawGroup(c, "DISPLAY", 146);
+    drawRow(c, settings, CarouselSettingRow::Upright, selected, 170);
 
-    drawGroup(c, "CAROUSEL", 236);
-    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 264);
-    drawRow(c, settings, CarouselSettingRow::Interval, selected, 310);
-    drawRow(c, settings, CarouselSettingRow::Motion, selected, 356);
-    drawRow(c, settings, CarouselSettingRow::Resume, selected, 402);
+    drawGroup(c, "CAROUSEL", 202);
+    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 226);
+    drawRow(c, settings, CarouselSettingRow::Interval, selected, 268);
+    drawRow(c, settings, CarouselSettingRow::Motion, selected, 310);
+    drawRow(c, settings, CarouselSettingRow::Resume, selected, 352);
 
     c.setTextDatum(middle_center);
     c.setFont(theme::kFontMicro);
     c.setTextColor(theme::kTextMuted);
-    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 430);
-    c.drawString("A+B HOLD SAVE", theme::kCenterX, 454);
+    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 424);
+    c.drawString("A+B HOLD SAVE", theme::kCenterX, 444);
 }
 
 }  // namespace stopwatch::views

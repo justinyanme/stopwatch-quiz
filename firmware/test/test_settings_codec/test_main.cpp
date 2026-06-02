@@ -76,11 +76,20 @@ void test_roundTripsVersion3TransportMode(void) {
 
 void test_rejectsWrongSizeAndUnknownVersion(void) {
     CarouselSettings out;
+    uint8_t emptyBuffer[1] = {0};
+    TEST_ASSERT_FALSE(decodeCarouselSettings(emptyBuffer, 0, out));
+
     uint8_t shortBytes[3] = {2, 0, 0};
     TEST_ASSERT_FALSE(decodeCarouselSettings(shortBytes, sizeof(shortBytes), out));
 
     uint8_t unknown[kSettingsV2BytesSize] = {99, 0, 0, 0, 10, 0, 20, 0};
     TEST_ASSERT_FALSE(decodeCarouselSettings(unknown, sizeof(unknown), out));
+
+    uint8_t v2TooLong[kSettingsV3BytesSize] = {2, 0, 0, 0, 10, 0, 20, 0, 0, 0};
+    TEST_ASSERT_FALSE(decodeCarouselSettings(v2TooLong, sizeof(v2TooLong), out));
+
+    uint8_t v3TooShort[kSettingsV2BytesSize] = {3, 0, 0, 0, 10, 0, 20, 0};
+    TEST_ASSERT_FALSE(decodeCarouselSettings(v3TooShort, sizeof(v3TooShort), out));
 }
 
 void test_decodeClampsInvalidStoredValues(void) {
