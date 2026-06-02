@@ -19,6 +19,8 @@ public actor BridgeService {
     private let usageTargets: [UsageClient.Target]
     private let providers: [ProviderConfig.Resolved]
     private var lastPolled: [String: Date] = [:]
+    private let directUsageCollector = DirectUsageCollector()
+    private let directCostCollector = DirectCostCollector()
 
     public init(config: Config) async {
         self.config = config
@@ -54,12 +56,15 @@ public actor BridgeService {
         refreshBridge.service = self
     }
 
+    /// The bridge now collects provider data directly (Codex/Claude/Gemini
+    /// usage + local cost logs) and no longer spawns or depends on the CodexBar
+    /// runtime, regardless of the legacy `spawnCodexbar` config flag.
+    static func usesCodexbarRuntimeByDefault(spawnCodexbar: Bool) -> Bool {
+        false
+    }
+
     public func run() async {
-        if config.spawnCodexbar {
-            await supervisor.start()
-        } else {
-            FileHandle.standardOutput.write(Data("spawnCodexbar=false; expecting external codexbar serve on port \(config.codexbarPort)\n".utf8))
-        }
+        FileHandle.standardOutput.write(Data("codexbar runtime disabled; using direct collectors\n".utf8))
         // Hop to main to assign delegate on the main-actor peripheral.
         await MainActor.run { [self] in
             self.peripheral.delegate = self
@@ -131,40 +136,25 @@ public actor BridgeService {
             await handleCostRefresh()
             return
         }
-        let s = CodexbarClient.Scope(rawByte: scope)
         let started = Date()
-        do {
-            let usage = try await client.fetch(scope: s)
-            let bytes = snapshotCache.recordSuccess(usage)
-            guard Self.shouldPublishRefreshResult() else {
-                FileHandle.standardOutput.write(Data("fetch superseded before publish (scope=\(scope))\n".utf8))
-                return
-            }
-            await peripheral.updateSnapshot(bytes)
-            await repository.update(.snapshot, bytes: bytes)
-            let elapsed = Date().timeIntervalSince(started)
-            FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
-                                                        Int(scope), usage.providers.count, elapsed).utf8))
-        } catch {
-            if CodexbarClient.isCancellation(error) {
-                // A newer trigger superseded this fetch (trigger writes are serialized by
-                // cancelling the in-flight one). Not a failure — the superseding refresh
-                // updates the snapshot; don't mark stale or cascade to a cost fetch.
-                FileHandle.standardOutput.write(Data("fetch superseded by newer trigger (scope=\(scope))\n".utf8))
-                return
-            }
-            FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
-            let failed = snapshotCache.recordFailure()
-            guard Self.shouldPublishRefreshResult() else {
-                FileHandle.standardOutput.write(Data("fetch failure superseded before publish (scope=\(scope))\n".utf8))
-                return
-            }
-            await peripheral.updateSnapshot(failed)
-            await repository.update(.snapshot, bytes: failed)
+        // Direct collectors fetch all configured providers at once; the scope
+        // byte only distinguishes the cost/balance/usage triggers handled above.
+        // An empty/failed result is preserved as stale by recordSuccess (which
+        // keeps last-good numbers rather than wiping them).
+        let usage = await directUsageCollector.fetchAll()
+        let bytes = snapshotCache.recordSuccess(usage)
+        guard Self.shouldPublishRefreshResult() else {
+            FileHandle.standardOutput.write(Data("fetch superseded before publish (scope=\(scope))\n".utf8))
+            return
         }
+        await peripheral.updateSnapshot(bytes)
+        await repository.update(.snapshot, bytes: bytes)
+        let elapsed = Date().timeIntervalSince(started)
+        FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
+                                                    Int(scope), usage.providers.count, elapsed).utf8))
         // Refresh cost only on a full (all-providers) refresh / prewarm; narrow per-provider
-        // usage triggers don't need a full /cost re-fetch (codexbar /cost is slow). Scope 0x04
-        // remains the explicit cost-only path (handled by the early return above).
+        // usage triggers don't need a full cost re-fetch. Scope 0x04 remains the explicit
+        // cost-only path (handled by the early return above).
         if scope == 0 { await handleCostRefresh() }
     }
 
@@ -192,30 +182,17 @@ public actor BridgeService {
     }
 
     private func handleCostRefresh() async {
-        do {
-            let cost = try await client.fetchCost(scope: .all)
-            let bytes = costCache.recordSuccess(cost)
-            guard Self.shouldPublishRefreshResult() else {
-                FileHandle.standardOutput.write(Data("cost refresh superseded before publish\n".utf8))
-                return
-            }
-            await peripheral.updateCostSnapshot(bytes)
-            await repository.update(.cost, bytes: bytes)
-            FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
-        } catch {
-            if CodexbarClient.isCancellation(error) {
-                FileHandle.standardOutput.write(Data("cost fetch superseded by newer trigger\n".utf8))
-                return
-            }
-            FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
-            let failed = costCache.recordFailure()
-            guard Self.shouldPublishRefreshResult() else {
-                FileHandle.standardOutput.write(Data("cost failure superseded before publish\n".utf8))
-                return
-            }
-            await peripheral.updateCostSnapshot(failed)
-            await repository.update(.cost, bytes: failed)
+        // Direct local cost collector scans Codex/Claude session logs; it never
+        // throws. An empty result is preserved as stale by recordSuccess.
+        let cost = await directCostCollector.fetchAll()
+        let bytes = costCache.recordSuccess(cost)
+        guard Self.shouldPublishRefreshResult() else {
+            FileHandle.standardOutput.write(Data("cost refresh superseded before publish\n".utf8))
+            return
         }
+        await peripheral.updateCostSnapshot(bytes)
+        await repository.update(.cost, bytes: bytes)
+        FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
     }
 
     private func balancePollLoop() async {
@@ -269,15 +246,4 @@ enum BridgeServiceLogStream: Equatable, Sendable {
 struct BridgeServiceLogMessage: Equatable, Sendable {
     var stream: BridgeServiceLogStream
     var text: String
-}
-
-private extension CodexbarClient.Scope {
-    init(rawByte: UInt8) {
-        switch rawByte {
-        case 1: self = .codex
-        case 2: self = .claude
-        case 3: self = .gemini
-        default: self = .all
-        }
-    }
 }

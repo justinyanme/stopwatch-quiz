@@ -21,6 +21,11 @@ import Testing
         #expect(!BridgeService.shouldPublishRefreshResult(taskIsCancelled: true))
     }
 
+    @Test func directCollectorsAreDefaultDataSource() {
+        #expect(BridgeService.usesCodexbarRuntimeByDefault(spawnCodexbar: true) == false)
+        #expect(BridgeService.usesCodexbarRuntimeByDefault(spawnCodexbar: false) == false)
+    }
+
     @Test func httpServerEventMessagesReflectActualLifecycle() {
         let listening = BridgeService.httpServerEventMessage(
             .listening(host: "127.0.0.1", port: 8787))
