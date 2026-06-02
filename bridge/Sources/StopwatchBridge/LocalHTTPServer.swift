@@ -148,6 +148,7 @@ public final class LocalHTTPServer: @unchecked Sendable {
         defer { lock.unlock() }
         guard task != nil else { return }
         isStopping = true
+        restartRequested = false
         task?.cancel()
         cancelClientTasksLocked()
     }

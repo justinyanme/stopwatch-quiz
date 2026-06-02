@@ -129,6 +129,23 @@ import Glibc
         try await waitForPortClosed(port: port)
     }
 
+    @Test func loopbackServerStopStartStopLeavesPortClosed() async throws {
+        let port = try freeLoopbackPort()
+        let server = LocalHTTPServer(host: "127.0.0.1", port: port) { _ in
+            .json(.ok, #"{"status":"ok"}"#)
+        }
+
+        server.start()
+        let first = try await waitForHTTPHealth(port: port)
+        #expect(first.contains("HTTP/1.1 200 OK"))
+
+        server.stop()
+        server.start()
+        server.stop()
+
+        try await waitForPortClosed(port: port)
+    }
+
     @Test func stopCancelsAcceptedClientTasks() async throws {
         let box = ScopeBox()
         let port = try freeLoopbackPort()
