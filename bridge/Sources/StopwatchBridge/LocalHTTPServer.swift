@@ -6,6 +6,7 @@ import Glibc
 #endif
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
+private let requestReadPollSliceMilliseconds: Int32 = 100
 private let acceptPollTimeoutMilliseconds: Int32 = 100
 private let requestHeaderLimitBytes = 16 * 1024
 
@@ -121,6 +122,10 @@ public final class LocalHTTPServer: @unchecked Sendable {
     private let lock = NSLock()
     private var task: Task<Void, Never>?
     private var runID: UInt64 = 0
+    private var isStopping = false
+    private var restartRequested = false
+    private var nextClientID: UInt64 = 0
+    private var clientTasks: [UInt64: Task<Void, Never>] = [:]
 
     public init(host: String, port: UInt16, handler: @escaping Handler) {
         self.host = host
@@ -131,26 +136,20 @@ public final class LocalHTTPServer: @unchecked Sendable {
     public func start() {
         lock.lock()
         defer { lock.unlock() }
-        guard task == nil else { return }
-
-        runID &+= 1
-        let currentRunID = runID
-        task = Task { [weak self, host, port, handler] in
-            defer { self?.clearTaskIfCurrentRun(currentRunID) }
-            do {
-                try await LocalHTTPServer.runLoop(host: host, port: port, handler: handler)
-            } catch {
-                if !Task.isCancelled {
-                    FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
-                }
-            }
+        if task == nil {
+            startRunLocked()
+        } else if isStopping {
+            restartRequested = true
         }
     }
 
     public func stop() {
         lock.lock()
         defer { lock.unlock() }
+        guard task != nil else { return }
+        isStopping = true
         task?.cancel()
+        cancelClientTasksLocked()
     }
 
     static func parseForTesting(_ data: Data) -> HTTPRequest? {
@@ -165,9 +164,67 @@ public final class LocalHTTPServer: @unchecked Sendable {
         defer { lock.unlock() }
         guard runID == currentRunID else { return }
         task = nil
+        isStopping = false
+        if restartRequested {
+            restartRequested = false
+            startRunLocked()
+        }
     }
 
-    private static func runLoop(host: String, port: UInt16, handler: @escaping Handler) async throws {
+    private func startRunLocked() {
+        runID &+= 1
+        let currentRunID = runID
+        isStopping = false
+        task = Task { [weak self] in
+            guard let self else { return }
+            defer { self.clearTaskIfCurrentRun(currentRunID) }
+            do {
+                try await self.runLoop()
+            } catch {
+                if !Task.isCancelled {
+                    FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
+                }
+            }
+        }
+    }
+
+    private func addClientTask(_ clientFD: Int32) {
+        lock.lock()
+        nextClientID &+= 1
+        let clientID = nextClientID
+        let handler = self.handler
+        let clientTask = Task { [weak self] in
+            self?.waitUntilClientTaskRegistered(clientID)
+            defer { closeSocket(clientFD) }
+            defer { self?.removeClientTask(clientID) }
+            await handleClient(clientFD, handler: handler)
+        }
+        if isStopping {
+            clientTask.cancel()
+        }
+        clientTasks[clientID] = clientTask
+        lock.unlock()
+    }
+
+    private func waitUntilClientTaskRegistered(_ clientID: UInt64) {
+        lock.lock()
+        _ = clientTasks[clientID]
+        lock.unlock()
+    }
+
+    private func removeClientTask(_ clientID: UInt64) {
+        lock.lock()
+        clientTasks[clientID] = nil
+        lock.unlock()
+    }
+
+    private func cancelClientTasksLocked() {
+        for task in clientTasks.values {
+            task.cancel()
+        }
+    }
+
+    private func runLoop() async throws {
         ignoreSIGPIPE()
 
         #if canImport(Darwin)
@@ -195,8 +252,8 @@ public final class LocalHTTPServer: @unchecked Sendable {
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         #endif
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = port.bigEndian
-        guard isIPv4Loopback(host), inet_pton(AF_INET, host, &address.sin_addr) == 1 else {
+        address.sin_port = self.port.bigEndian
+        guard isIPv4Loopback(host), inet_pton(AF_INET, self.host, &address.sin_addr) == 1 else {
             throw POSIXError(.EADDRNOTAVAIL)
         }
 
@@ -223,10 +280,7 @@ public final class LocalHTTPServer: @unchecked Sendable {
             var clientLength = socklen_t(MemoryLayout<sockaddr>.size)
             let clientFD = accept(serverFD, &clientAddress, &clientLength)
             guard clientFD >= 0 else { continue }
-            Task {
-                defer { closeSocket(clientFD) }
-                await handleClient(clientFD, handler: handler)
-            }
+            addClientTask(clientFD)
         }
     }
 }
@@ -249,11 +303,13 @@ private struct ParsedHTTPRequest {
         }
 
         let parts = firstLine.split(separator: " ")
-        guard parts.count >= 3 else { return .failure(.invalidRequest) }
+        guard parts.count == 3 else { return .failure(.invalidRequest) }
 
         let method = String(parts[0])
         let target = String(parts[1])
+        let version = String(parts[2])
         guard target.hasPrefix("/") else { return .failure(.invalidRequest) }
+        guard version == "HTTP/1.0" || version == "HTTP/1.1" else { return .failure(.invalidRequest) }
 
         switch parseHeaders(raw) {
         case let .success(headers):
@@ -328,15 +384,26 @@ private func readRequest(_ fd: Int32) -> Result<ParsedHTTPRequest, HTTPRequestPa
     var buffer = [UInt8](repeating: 0, count: 4096)
     let bufferSize = buffer.count
     var sawHeaderEnd = false
+    var waitedMilliseconds: Int32 = 0
 
     while data.count < requestHeaderLimitBytes {
-        guard waitForReadable(fd, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
+        if Task.isCancelled {
             return .failure(.invalidRequest)
+        }
+        let remainingMilliseconds = requestReadTimeoutMilliseconds - waitedMilliseconds
+        guard remainingMilliseconds > 0 else { return .failure(.invalidRequest) }
+        let timeout = min(requestReadPollSliceMilliseconds, remainingMilliseconds)
+        guard waitForReadable(fd, timeoutMilliseconds: timeout) else {
+            waitedMilliseconds += timeout
+            continue
         }
         let remainingCapacity = requestHeaderLimitBytes - data.count
         let readSize = min(bufferSize, remainingCapacity)
         let count = buffer.withUnsafeMutableBytes { rawBuffer in
             recv(fd, rawBuffer.baseAddress, readSize, 0)
+        }
+        if count == -1, errno == EINTR {
+            continue
         }
         guard count > 0 else { break }
         data.append(buffer, count: count)

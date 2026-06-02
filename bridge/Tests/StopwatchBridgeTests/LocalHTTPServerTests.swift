@@ -73,6 +73,20 @@ import Glibc
         #expect(cancelled == [1])
     }
 
+    @Test func schedulerSkipsImmediatelySupersededRefreshBeforeCallback() async throws {
+        let box = ScopeBox()
+        let scheduler = RefreshScheduler { scope in
+            await Task.yield()
+            await box.complete(scope)
+        }
+
+        await scheduler.schedule(scope: 1)
+        await scheduler.schedule(scope: 2)
+
+        let completed = try await waitForScopes(in: box, matching: [2])
+        #expect(completed == [2])
+    }
+
     @Test func loopbackServerStopsAndRestartsOnSamePort() async throws {
         let port = try freeLoopbackPort()
         let server = LocalHTTPServer(host: "127.0.0.1", port: port) { request in
@@ -93,6 +107,52 @@ import Glibc
         #expect(second.contains("HTTP/1.1 200 OK"))
         #expect(second.contains(#"{"status":"ok"}"#))
         server.stop()
+        try await waitForPortClosed(port: port)
+    }
+
+    @Test func loopbackServerImmediateRestartAfterStopUsesSamePort() async throws {
+        let port = try freeLoopbackPort()
+        let server = LocalHTTPServer(host: "127.0.0.1", port: port) { _ in
+            .json(.ok, #"{"status":"ok"}"#)
+        }
+
+        server.start()
+        let first = try await waitForHTTPHealth(port: port)
+        #expect(first.contains("HTTP/1.1 200 OK"))
+
+        server.stop()
+        server.start()
+
+        let second = try await waitForHTTPHealth(port: port)
+        #expect(second.contains("HTTP/1.1 200 OK"))
+        server.stop()
+        try await waitForPortClosed(port: port)
+    }
+
+    @Test func stopCancelsAcceptedClientTasks() async throws {
+        let box = ScopeBox()
+        let port = try freeLoopbackPort()
+        let server = LocalHTTPServer(host: "127.0.0.1", port: port) { _ in
+            await box.start(9)
+            do {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                await box.complete(9)
+            } catch {
+                await box.cancel(9)
+            }
+            return .json(.ok, #"{"status":"ok"}"#)
+        }
+
+        server.start()
+        let fd = try await waitForConnectedSocket(port: port)
+        defer { closeSocket(fd) }
+        try sendAll(Data("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n".utf8), fd: fd)
+        _ = try await waitForStartedScopes(in: box, matching: [9])
+
+        server.stop()
+
+        let cancelled = try await waitForCancelledScopes(in: box, matching: [9])
+        #expect(cancelled == [9])
         try await waitForPortClosed(port: port)
     }
 
@@ -127,6 +187,20 @@ import Glibc
         #expect(request?.headers["Authorization"] == nil)
     }
 
+    @Test func parserRejectsRequestLineWithExtraTokens() {
+        let request = LocalHTTPServer.parseForTesting(
+            requestData("GET /v1/health HTTP/1.1 unexpected"))
+
+        #expect(request == nil)
+    }
+
+    @Test func parserRejectsInvalidHTTPVersion() {
+        let request = LocalHTTPServer.parseForTesting(
+            requestData("GET /v1/health HTTP/2.0"))
+
+        #expect(request == nil)
+    }
+
     private func requestData(_ firstLine: String, headers: [String: String] = ["Host": "localhost"]) -> Data {
         var raw = firstLine + "\r\n"
         for (name, value) in headers {
@@ -150,6 +224,13 @@ import Glibc
         }
     }
 
+    private func waitForCancelledScopes(in box: ScopeBox, matching expected: [UInt8]) async throws -> [UInt8] {
+        try await waitUntil {
+            let scopes = await box.cancelledScopes()
+            return scopes == expected ? scopes : nil
+        }
+    }
+
     private func waitUntil<T>(_ condition: () async -> T?) async throws -> T {
         let deadline = Date().addingTimeInterval(1.0)
         while Date() < deadline {
@@ -164,6 +245,12 @@ import Glibc
     private func waitForHTTPHealth(port: UInt16) async throws -> String {
         try await waitUntil {
             try? fetchHealth(port: port)
+        }
+    }
+
+    private func waitForConnectedSocket(port: UInt16) async throws -> Int32 {
+        try await waitUntil {
+            connectToLoopback(port: port)
         }
     }
 
