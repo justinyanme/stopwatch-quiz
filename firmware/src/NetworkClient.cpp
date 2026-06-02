@@ -21,6 +21,41 @@ bool appendURL(char *out, size_t n, const char *base, const char *path) {
     int written = std::snprintf(out, n, "%s%s%s", base, slash ? "" : "/", path[0] == '/' ? path + 1 : path);
     return written > 0 && (size_t)written < n;
 }
+
+#ifdef ARDUINO
+// Sink for HTTPClient::writeToStream that captures the response body into a
+// fixed buffer. writeToStream de-chunks Transfer-Encoding: chunked responses for
+// us, so this works whether or not Content-Length is present — Cloudflare Tunnel
+// commonly re-frames responses as chunked (getSize() == -1), which a raw
+// read-by-Content-Length would reject or read with chunk framing intact.
+class BufferSink : public Stream {
+public:
+    BufferSink(uint8_t *buf, size_t cap) : buf_(buf), cap_(cap) {}
+    size_t length() const { return len_; }
+    bool overflowed() const { return overflow_; }
+
+    size_t write(uint8_t b) override {
+        if (len_ >= cap_) { overflow_ = true; return 0; }
+        buf_[len_++] = b;
+        return 1;
+    }
+    size_t write(const uint8_t *data, size_t size) override {
+        if (size > cap_ - len_) { overflow_ = true; return 0; }  // short write -> writeToStream aborts
+        std::memcpy(buf_ + len_, data, size);
+        len_ += size;
+        return size;
+    }
+    int available() override { return 0; }
+    int read() override { return -1; }
+    int peek() override { return -1; }
+
+private:
+    uint8_t *buf_;
+    size_t cap_;
+    size_t len_ = 0;
+    bool overflow_ = false;
+};
+#endif
 }  // namespace
 
 void NetworkClient::begin() {
@@ -76,16 +111,21 @@ NetworkClient::FetchResult NetworkClient::fetchPath(
         http.end();
         return FetchResult::RequestFailed;
     }
+    // A known Content-Length larger than the buffer is an oversized/bad payload.
     int len = http.getSize();
-    if (len <= 0 || (size_t)len > bufSize) {
+    if (len > 0 && (size_t)len > bufSize) {
         http.end();
         return FetchResult::BadPayload;
     }
-    WiFiClient *stream = http.getStreamPtr();
-    size_t read = stream->readBytes(outBytes, len);
+    // writeToStream handles both identity and chunked transfer-encoding; reading
+    // by Content-Length (getSize()) breaks when the tunnel sends chunked (len == -1).
+    BufferSink sink(outBytes, bufSize);
+    int written = http.writeToStream(&sink);
     http.end();
-    if (read != (size_t)len) return FetchResult::BadPayload;
-    outLen = read;
+    if (sink.overflowed() || written < 0 || sink.length() == 0) {
+        return FetchResult::BadPayload;
+    }
+    outLen = sink.length();
     return FetchResult::Ok;
 #else
     (void)path;
