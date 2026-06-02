@@ -11,6 +11,7 @@
 #include "OrientationController.h"
 #include "Power.h"
 #include "Renderer.h"
+#include "SerialProvisioning.h"
 #include "SnapshotCodec.h"
 #include "SnapshotStore.h"
 #include "Theme.h"
@@ -32,6 +33,7 @@ stopwatch::BleClient   g_ble;
 stopwatch::Renderer    g_renderer;
 stopwatch::Power       g_power;
 stopwatch::SnapshotStore g_store;
+stopwatch::SerialProvisioning g_provisioning;
 stopwatch::Snapshot    g_snap;
 stopwatch::CostSnapshot g_cost;
 bool                    g_costLoaded = false;
@@ -429,6 +431,7 @@ void setup() {
     g_renderer.setOrientation(stopwatch::DisplayOrientation::Deg0);
     Serial.println("[stopwatch-fw] renderer ready; init store/app/power/ble");
     g_store.begin();
+    g_provisioning.begin();
     if (!g_store.loadCarouselSettings(g_carouselSettings)) {
         g_carouselSettings = stopwatch::CarouselSettings::defaults();
     }
@@ -476,6 +479,7 @@ void setup() {
 void loop() {
     using namespace stopwatch;
     M5.update();
+    g_provisioning.poll();
     auto ev = pollButtons();
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();
