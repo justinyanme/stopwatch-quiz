@@ -113,12 +113,19 @@ public struct SnapshotHTTPHandler: Sendable {
     }
 }
 
+public enum LocalHTTPServerEvent: Equatable, Sendable {
+    case listening(host: String, port: UInt16)
+    case failed(host: String, port: UInt16, message: String)
+}
+
 public final class LocalHTTPServer: @unchecked Sendable {
     public typealias Handler = @Sendable (HTTPRequest) async -> HTTPResponse
+    public typealias EventHandler = @Sendable (LocalHTTPServerEvent) -> Void
 
     private let host: String
     private let port: UInt16
     private let handler: Handler
+    private let onEvent: EventHandler?
     private let lock = NSLock()
     private var task: Task<Void, Never>?
     private var runID: UInt64 = 0
@@ -127,9 +134,10 @@ public final class LocalHTTPServer: @unchecked Sendable {
     private var nextClientID: UInt64 = 0
     private var clientTasks: [UInt64: Task<Void, Never>] = [:]
 
-    public init(host: String, port: UInt16, handler: @escaping Handler) {
+    public init(host: String, port: UInt16, onEvent: EventHandler? = nil, handler: @escaping Handler) {
         self.host = host
         self.port = port
+        self.onEvent = onEvent
         self.handler = handler
     }
 
@@ -183,9 +191,22 @@ public final class LocalHTTPServer: @unchecked Sendable {
                 try await self.runLoop()
             } catch {
                 if !Task.isCancelled {
-                    FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
+                    self.emitFailure(error)
                 }
             }
+        }
+    }
+
+    private func emit(_ event: LocalHTTPServerEvent) {
+        onEvent?(event)
+    }
+
+    private func emitFailure(_ error: Error) {
+        let event = LocalHTTPServerEvent.failed(host: host, port: port, message: String(describing: error))
+        if onEvent != nil {
+            emit(event)
+        } else {
+            FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
         }
     }
 
@@ -270,6 +291,8 @@ public final class LocalHTTPServer: @unchecked Sendable {
         guard listen(serverFD, 16) == 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
+
+        emit(.listening(host: host, port: port))
 
         while !Task.isCancelled {
             guard waitForReadable(serverFD, timeoutMilliseconds: acceptPollTimeoutMilliseconds) else {

@@ -43,6 +43,9 @@ public actor BridgeService {
         self.httpServer = LocalHTTPServer(
             host: config.httpBindHost,
             port: config.httpPort,
+            onEvent: { event in
+                Self.writeHTTPServerEvent(event)
+            },
             handler: SnapshotHTTPHandler(
                 repository: repository,
                 authenticator: HTTPAuthenticator(apiToken: config.apiToken),
@@ -62,7 +65,6 @@ public actor BridgeService {
             self.peripheral.delegate = self
         }
         httpServer.start()
-        FileHandle.standardOutput.write(Data("http listening on http://\(config.httpBindHost):\(config.httpPort)\n".utf8))
 
         // Background prewarm loop: keeps the GATT snapshot fresh even when no
         // watch is connected. Watch reads always see the latest cached frame
@@ -80,6 +82,27 @@ public actor BridgeService {
 
     static func shouldPublishRefreshResult(taskIsCancelled: Bool = Task.isCancelled) -> Bool {
         !taskIsCancelled
+    }
+
+    static func httpServerEventMessage(_ event: LocalHTTPServerEvent) -> BridgeServiceLogMessage {
+        switch event {
+        case let .listening(host, port):
+            return .init(stream: .standardOutput, text: "http listening on http://\(host):\(port)\n")
+        case let .failed(host, port, message):
+            return .init(
+                stream: .standardError,
+                text: "http server failed on http://\(host):\(port): \(message)\n")
+        }
+    }
+
+    private static func writeHTTPServerEvent(_ event: LocalHTTPServerEvent) {
+        let message = httpServerEventMessage(event)
+        switch message.stream {
+        case .standardOutput:
+            FileHandle.standardOutput.write(Data(message.text.utf8))
+        case .standardError:
+            FileHandle.standardError.write(Data(message.text.utf8))
+        }
     }
 
     private func prewarmLoop() async {
@@ -236,6 +259,16 @@ private final class BridgeRefreshBridge: @unchecked Sendable {
     func refresh(scope: UInt8) async {
         await service?.handleRefresh(scope: scope)
     }
+}
+
+enum BridgeServiceLogStream: Equatable, Sendable {
+    case standardOutput
+    case standardError
+}
+
+struct BridgeServiceLogMessage: Equatable, Sendable {
+    var stream: BridgeServiceLogStream
+    var text: String
 }
 
 private extension CodexbarClient.Scope {

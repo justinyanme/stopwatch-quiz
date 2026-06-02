@@ -146,6 +146,54 @@ import Glibc
         try await waitForPortClosed(port: port)
     }
 
+    @Test func emitsListeningOnlyAfterSocketAcceptsConnections() async throws {
+        let port = try freeLoopbackPort()
+        let events = ServerEventBox()
+        let server = LocalHTTPServer(host: "127.0.0.1", port: port, onEvent: { event in
+            Task { await events.append(event) }
+        }) { _ in
+            .json(.ok, #"{"status":"ok"}"#)
+        }
+
+        server.start()
+
+        let event = try await waitForServerEvent(in: events)
+        guard case let .listening(host, listenedPort) = event else {
+            Issue.record("expected listening event, got \(event)")
+            return
+        }
+        #expect(host == "127.0.0.1")
+        #expect(listenedPort == port)
+        let response = try await waitForHTTPHealth(port: port)
+        #expect(response.contains("HTTP/1.1 200 OK"))
+        server.stop()
+        try await waitForPortClosed(port: port)
+    }
+
+    @Test func emitsFailureInsteadOfListeningWhenPortIsUnavailable() async throws {
+        let reserved = try reserveLoopbackPort()
+        defer { closeSocket(reserved.fd) }
+
+        let events = ServerEventBox()
+        let server = LocalHTTPServer(host: "127.0.0.1", port: reserved.port, onEvent: { event in
+            Task { await events.append(event) }
+        }) { _ in
+            .json(.ok, #"{"status":"ok"}"#)
+        }
+
+        server.start()
+
+        let event = try await waitForServerEvent(in: events)
+        guard case let .failed(host, port, message) = event else {
+            Issue.record("expected failed event, got \(event)")
+            return
+        }
+        #expect(host == "127.0.0.1")
+        #expect(port == reserved.port)
+        #expect(!message.isEmpty)
+        #expect(await events.listeningEvents().isEmpty)
+    }
+
     @Test func stopCancelsAcceptedClientTasks() async throws {
         let box = ScopeBox()
         let port = try freeLoopbackPort()
@@ -248,6 +296,12 @@ import Glibc
         }
     }
 
+    private func waitForServerEvent(in box: ServerEventBox) async throws -> LocalHTTPServerEvent {
+        try await waitUntil {
+            await box.events().first
+        }
+    }
+
     private func waitUntil<T>(_ condition: () async -> T?) async throws -> T {
         let deadline = Date().addingTimeInterval(1.0)
         while Date() < deadline {
@@ -280,6 +334,25 @@ import Glibc
             return true
         }
         #expect(closed)
+    }
+}
+
+private actor ServerEventBox {
+    private var all: [LocalHTTPServerEvent] = []
+
+    func append(_ event: LocalHTTPServerEvent) {
+        all.append(event)
+    }
+
+    func events() -> [LocalHTTPServerEvent] {
+        all
+    }
+
+    func listeningEvents() -> [LocalHTTPServerEvent] {
+        all.filter { event in
+            if case .listening = event { return true }
+            return false
+        }
     }
 }
 
@@ -343,6 +416,46 @@ private func freeLoopbackPort() throws -> UInt16 {
     }
     guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     return UInt16(bigEndian: assigned.sin_port)
+}
+
+private func reserveLoopbackPort() throws -> (fd: Int32, port: UInt16) {
+    let fd = try makeSocket()
+
+    var address = sockaddr_in()
+    #if canImport(Darwin)
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    #endif
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = 0
+    inet_pton(AF_INET, "127.0.0.1", &address.sin_addr)
+
+    let bound = withUnsafePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+            bind(fd, socketAddress, socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    guard bound == 0 else {
+        closeSocket(fd)
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
+    guard listen(fd, 1) == 0 else {
+        closeSocket(fd)
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
+    var assigned = sockaddr_in()
+    var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+    let result = withUnsafeMutablePointer(to: &assigned) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+            getsockname(fd, socketAddress, &length)
+        }
+    }
+    guard result == 0 else {
+        closeSocket(fd)
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+    return (fd, UInt16(bigEndian: assigned.sin_port))
 }
 
 private func fetchHealth(port: UInt16) throws -> String {
