@@ -72,7 +72,11 @@ public struct Config: Codable, Equatable, Sendable {
     public static func load(from url: URL = defaultPath) throws -> Config? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode(Config.self, from: data)
+        let cfg = try JSONDecoder().decode(Config.self, from: data)
+        if try needsHTTPMigration(data) {
+            try save(cfg, to: url)
+        }
+        return cfg
     }
 
     public static func save(_ cfg: Config, to url: URL = defaultPath) throws {
@@ -90,9 +94,19 @@ public struct Config: Codable, Equatable, Sendable {
         var bytes = [UInt8](repeating: 0, count: byteCount)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         if status != errSecSuccess {
-            let seed = UUID().uuidString.replacingOccurrences(of: "-", with: "")
-            return String(seed.prefix(byteCount * 2)).padding(toLength: byteCount * 2, withPad: "0", startingAt: 0)
+            let length = byteCount * 2
+            var hex = ""
+            while hex.count < length {
+                hex += UUID().uuidString.replacingOccurrences(of: "-", with: "")
+            }
+            return String(hex.prefix(length))
         }
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func needsHTTPMigration(_ data: Data) throws -> Bool {
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let dict = object as? [String: Any] else { return false }
+        return dict["httpBindHost"] == nil || dict["httpPort"] == nil || dict["apiToken"] == nil
     }
 }
