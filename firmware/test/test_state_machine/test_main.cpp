@@ -2,6 +2,7 @@
 #include <unity.h>
 #include "../../src/App.h"
 #include "../../src/CarouselSettings.h"
+#include "../../src/NetworkClient.h"
 
 using namespace stopwatch;
 
@@ -69,6 +70,28 @@ void test_linkStatusDefaultsToNoBridgeAndMutates(void) {
     TEST_ASSERT_EQUAL((int)LinkStatus::NoBridge, (int)app.linkStatus());
     app.setLinkStatus(LinkStatus::Connected);
     TEST_ASSERT_EQUAL((int)LinkStatus::Connected, (int)app.linkStatus());
+}
+
+void test_transportFetchResultsMapToModeSpecificLinkStatus(void) {
+    TEST_ASSERT_EQUAL((int)LinkStatus::Connected,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::Ok));
+    TEST_ASSERT_EQUAL((int)LinkStatus::WiFiMissing,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::WiFiMissing));
+    TEST_ASSERT_EQUAL((int)LinkStatus::APIMissing,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::APIMissing));
+    TEST_ASSERT_EQUAL((int)LinkStatus::WiFiOffline,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::WiFiOffline));
+    TEST_ASSERT_EQUAL((int)LinkStatus::APIAuth,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::AuthFailed));
+    TEST_ASSERT_EQUAL((int)LinkStatus::APIError,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::RequestFailed));
+    TEST_ASSERT_EQUAL((int)LinkStatus::APIError,
+                      (int)linkStatusForFetchResult(TransportMode::WiFi, NetworkClient::FetchResult::BadPayload));
+
+    TEST_ASSERT_EQUAL((int)LinkStatus::NoBridge,
+                      (int)linkStatusForFetchResult(TransportMode::BLE, NetworkClient::FetchResult::WiFiOffline));
+    TEST_ASSERT_EQUAL((int)LinkStatus::LinkError,
+                      (int)linkStatusForFetchResult(TransportMode::BLE, NetworkClient::FetchResult::RequestFailed));
 }
 
 void test_balanceDetailEnterExit(void) {
@@ -290,6 +313,7 @@ int main(int, char **) {
     RUN_TEST(test_longPressesSetFlags);
     RUN_TEST(test_wakeFromSleepRequestsRefresh);
     RUN_TEST(test_linkStatusDefaultsToNoBridgeAndMutates);
+    RUN_TEST(test_transportFetchResultsMapToModeSpecificLinkStatus);
     RUN_TEST(test_isSpendView);
     RUN_TEST(test_balancesInCarousel);
     RUN_TEST(test_balanceDetailEnterExit);

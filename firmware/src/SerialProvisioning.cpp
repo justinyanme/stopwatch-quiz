@@ -20,12 +20,18 @@ constexpr const char *kToken = "token";
 
 #ifdef ARDUINO
 Preferences prefs;
+bool prefsOpen = false;
 #endif
 }  // namespace
 
 void SerialProvisioning::begin() {
 #ifdef ARDUINO
+    if (prefsOpen) {
+        open_ = true;
+        return;
+    }
     open_ = prefs.begin(kNs, false);
+    if (open_) prefsOpen = true;
 #endif
 }
 

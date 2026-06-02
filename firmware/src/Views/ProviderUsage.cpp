@@ -59,6 +59,11 @@ struct Pill { const char *label; uint32_t color; };
 Pill pillFor(LinkStatus link, const UsageSnapshot &snapshot, const UsageRecord *usage) {
     if (link == LinkStatus::NoBridge)              return { "no bridge", theme::kPillInfo };
     if (link == LinkStatus::LinkError)             return { "link error", theme::kPillError };
+    if (link == LinkStatus::WiFiMissing)           return { "wifi setup", theme::kPillInfo };
+    if (link == LinkStatus::APIMissing)            return { "api setup", theme::kPillInfo };
+    if (link == LinkStatus::WiFiOffline)           return { "wifi offline", theme::kPillError };
+    if (link == LinkStatus::APIAuth)               return { "api auth", theme::kPillError };
+    if (link == LinkStatus::APIError)              return { "api error", theme::kPillError };
     if (snapshot.isUnavailable() || snapshot.isPendingEmpty()) return { "no usage", theme::kPillInfo };
     if (snapshot.isStale() || snapshot.isBridgeError())        return { "usage stale", theme::kPillStale };
     if (!usage) return { nullptr, 0 };
