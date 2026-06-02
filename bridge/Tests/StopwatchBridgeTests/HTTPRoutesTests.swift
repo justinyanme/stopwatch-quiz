@@ -25,4 +25,13 @@ import Testing
             try HTTPRoute.parse(method: "POST", path: "/v1/refresh", query: ["scope": "999"])
         }
     }
+
+    @Test func rejectsLowercaseMethodsForKnownRoutes() {
+        #expect(throws: HTTPRouteError.methodNotAllowed) {
+            try HTTPRoute.parse(method: "get", path: "/v1/health", query: [:])
+        }
+        #expect(throws: HTTPRouteError.methodNotAllowed) {
+            try HTTPRoute.parse(method: "post", path: "/v1/refresh", query: ["scope": "4"])
+        }
+    }
 }
