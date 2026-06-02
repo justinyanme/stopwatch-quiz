@@ -32,6 +32,7 @@ void SerialProvisioning::begin() {
 bool SerialProvisioning::load(DeviceNetworkConfig &out) {
 #ifdef ARDUINO
     if (!open_) return false;
+    out = DeviceNetworkConfig{};
     prefs.getString(kSSID, out.wifiSSID, sizeof(out.wifiSSID));
     prefs.getString(kPass, out.wifiPassword, sizeof(out.wifiPassword));
     prefs.getString(kBase, out.apiBaseURL, sizeof(out.apiBaseURL));
@@ -47,7 +48,26 @@ bool SerialProvisioning::load(DeviceNetworkConfig &out) {
 
 void SerialProvisioning::clear() {
 #ifdef ARDUINO
-    if (open_) prefs.clear();
+    (void)clearStore();
+#endif
+}
+
+bool SerialProvisioning::saveString(const char *key, const char *value) {
+#ifdef ARDUINO
+    if (!open_) return false;
+    return prefs.putString(key, value) > 0;
+#else
+    (void)key;
+    (void)value;
+    return false;
+#endif
+}
+
+bool SerialProvisioning::clearStore() {
+#ifdef ARDUINO
+    return open_ && prefs.clear();
+#else
+    return false;
 #endif
 }
 
@@ -77,17 +97,20 @@ void SerialProvisioning::applyLine(const char *line) {
         Serial.println("[provision] invalid command");
         return;
     }
+    bool saved = false;
     switch (cmd.action) {
-        case ProvisioningAction::SetWiFiSSID: prefs.putString(kSSID, cmd.value); break;
-        case ProvisioningAction::SetWiFiPassword: prefs.putString(kPass, cmd.value); break;
-        case ProvisioningAction::SetAPIBaseURL: prefs.putString(kBase, cmd.value); break;
-        case ProvisioningAction::SetCFAccessClientID: prefs.putString(kCFID, cmd.value); break;
-        case ProvisioningAction::SetCFAccessClientSecret: prefs.putString(kCFSecret, cmd.value); break;
-        case ProvisioningAction::SetAPIToken: prefs.putString(kToken, cmd.value); break;
+        case ProvisioningAction::SetWiFiSSID: saved = saveString(kSSID, cmd.value); break;
+        case ProvisioningAction::SetWiFiPassword: saved = saveString(kPass, cmd.value); break;
+        case ProvisioningAction::SetAPIBaseURL: saved = saveString(kBase, cmd.value); break;
+        case ProvisioningAction::SetCFAccessClientID: saved = saveString(kCFID, cmd.value); break;
+        case ProvisioningAction::SetCFAccessClientSecret: saved = saveString(kCFSecret, cmd.value); break;
+        case ProvisioningAction::SetAPIToken: saved = saveString(kToken, cmd.value); break;
         case ProvisioningAction::ShowConfig: printConfig(); return;
-        case ProvisioningAction::ClearConfig: clear(); Serial.println("[provision] cleared"); return;
+        case ProvisioningAction::ClearConfig:
+            Serial.println(clearStore() ? "[provision] cleared" : "[provision] clear failed");
+            return;
     }
-    Serial.println("[provision] saved");
+    Serial.println(saved ? "[provision] saved" : "[provision] save failed");
 #else
     (void)line;
 #endif

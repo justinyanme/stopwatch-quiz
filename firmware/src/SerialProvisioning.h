@@ -13,6 +13,8 @@ public:
 private:
     void applyLine(const char *line);
     void printConfig();
+    bool saveString(const char *key, const char *value);
+    bool clearStore();
     bool open_ = false;
 };
 
