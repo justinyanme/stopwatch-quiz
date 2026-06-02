@@ -6,6 +6,7 @@ import Glibc
 #endif
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
+private let acceptPollTimeoutMilliseconds: Int32 = 100
 private let requestHeaderLimitBytes = 16 * 1024
 
 public struct HTTPRequest: Sendable {
@@ -105,7 +106,7 @@ public struct SnapshotHTTPHandler: Sendable {
         case let .read(kind):
             return HTTPResponse(status: .ok, contentType: "application/octet-stream", body: await repository.bytes(for: kind))
         case let .refresh(scope):
-            scheduler.schedule(scope: scope)
+            await scheduler.schedule(scope: scope)
             return .json(.accepted, #"{"status":"scheduled"}"#)
         }
     }
@@ -117,7 +118,9 @@ public final class LocalHTTPServer: @unchecked Sendable {
     private let host: String
     private let port: UInt16
     private let handler: Handler
+    private let lock = NSLock()
     private var task: Task<Void, Never>?
+    private var runID: UInt64 = 0
 
     public init(host: String, port: UInt16, handler: @escaping Handler) {
         self.host = host
@@ -126,19 +129,28 @@ public final class LocalHTTPServer: @unchecked Sendable {
     }
 
     public func start() {
+        lock.lock()
+        defer { lock.unlock() }
         guard task == nil else { return }
-        task = Task { [host, port, handler] in
+
+        runID &+= 1
+        let currentRunID = runID
+        task = Task { [weak self, host, port, handler] in
+            defer { self?.clearTaskIfCurrentRun(currentRunID) }
             do {
                 try await LocalHTTPServer.runLoop(host: host, port: port, handler: handler)
             } catch {
-                FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
+                if !Task.isCancelled {
+                    FileHandle.standardError.write(Data("http server failed: \(error)\n".utf8))
+                }
             }
         }
     }
 
     public func stop() {
+        lock.lock()
+        defer { lock.unlock() }
         task?.cancel()
-        task = nil
     }
 
     static func parseForTesting(_ data: Data) -> HTTPRequest? {
@@ -146,6 +158,13 @@ public final class LocalHTTPServer: @unchecked Sendable {
             return nil
         }
         return parsedRequest.request
+    }
+
+    private func clearTaskIfCurrentRun(_ currentRunID: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard runID == currentRunID else { return }
+        task = nil
     }
 
     private static func runLoop(host: String, port: UInt16, handler: @escaping Handler) async throws {
@@ -195,9 +214,10 @@ public final class LocalHTTPServer: @unchecked Sendable {
         }
 
         while !Task.isCancelled {
-            guard waitForReadable(serverFD, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
+            guard waitForReadable(serverFD, timeoutMilliseconds: acceptPollTimeoutMilliseconds) else {
                 continue
             }
+            guard !Task.isCancelled else { break }
 
             var clientAddress = sockaddr()
             var clientLength = socklen_t(MemoryLayout<sockaddr>.size)
@@ -337,8 +357,13 @@ private func sendResponse(_ response: HTTPResponse, to fd: Int32) {
         var sent = 0
         while sent < data.count {
             let count = send(fd, base.advanced(by: sent), data.count - sent, sendNoSignalFlags())
-            guard count > 0 else { break }
-            sent += count
+            if count > 0 {
+                sent += count
+            } else if count == -1, errno == EINTR {
+                continue
+            } else {
+                break
+            }
         }
     }
 }
