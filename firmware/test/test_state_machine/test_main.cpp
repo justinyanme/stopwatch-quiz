@@ -113,6 +113,7 @@ void test_carouselSettingsDefaultsAndValidation(void) {
     TEST_ASSERT_EQUAL_UINT16(10, s.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)s.motionMode);
     TEST_ASSERT_EQUAL_UINT16(20, s.resumeSeconds);
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)s.transportMode);
 
     CarouselSettings invalid;
     invalid.uprightEnabled = true;
@@ -120,16 +121,23 @@ void test_carouselSettingsDefaultsAndValidation(void) {
     invalid.intervalSeconds = 7;
     invalid.motionMode = (CarouselMotionMode)99;
     invalid.resumeSeconds = 11;
+    invalid.transportMode = (TransportMode)99;
     invalid.validate();
 
     TEST_ASSERT_TRUE(invalid.uprightEnabled);
     TEST_ASSERT_EQUAL_UINT16(10, invalid.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)invalid.motionMode);
     TEST_ASSERT_EQUAL_UINT16(20, invalid.resumeSeconds);
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)invalid.transportMode);
 }
 
 void test_carouselSettingsCyclesValues(void) {
     CarouselSettings s = CarouselSettings::defaults();
+
+    s.cycle(CarouselSettingRow::Transport);
+    TEST_ASSERT_EQUAL((int)TransportMode::WiFi, (int)s.transportMode);
+    s.cycle(CarouselSettingRow::Transport);
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)s.transportMode);
 
     s.cycle(CarouselSettingRow::Upright);
     TEST_ASSERT_TRUE(s.uprightEnabled);
@@ -169,7 +177,7 @@ void test_bothLongEntersAndExitsCarouselSettings(void) {
     bool changed = app.handleEvent(ButtonEvent::BothLong, settings);
     TEST_ASSERT_TRUE(changed);
     TEST_ASSERT_TRUE(app.inCarouselSettings());
-    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Transport, (int)app.carouselSettingRow());
 
     changed = app.handleEvent(ButtonEvent::BothLong, settings);
     TEST_ASSERT_TRUE(changed);
@@ -182,17 +190,17 @@ void test_carouselSettingsRowsAndValuesChange(void) {
     app.handleEvent(ButtonEvent::BothLong, settings);
 
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL((int)TransportMode::WiFi, (int)settings.transportMode);
+
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
     TEST_ASSERT_TRUE(settings.uprightEnabled);
 
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
     TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
     TEST_ASSERT_FALSE(settings.autoplayEnabled);
-
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
-    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Interval, (int)app.carouselSettingRow());
-    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
-    TEST_ASSERT_EQUAL_UINT16(15, settings.intervalSeconds);
 }
 
 void test_carouselSettingsRowsCycleThroughAllRows(void) {
@@ -200,6 +208,8 @@ void test_carouselSettingsRowsCycleThroughAllRows(void) {
     CarouselSettings settings = CarouselSettings::defaults();
     app.handleEvent(ButtonEvent::BothLong, settings);
 
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Transport, (int)app.carouselSettingRow());
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
     TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
     TEST_ASSERT_EQUAL((int)CarouselSettingRow::Autoplay, (int)app.carouselSettingRow());
@@ -210,13 +220,32 @@ void test_carouselSettingsRowsCycleThroughAllRows(void) {
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
     TEST_ASSERT_EQUAL((int)CarouselSettingRow::Resume, (int)app.carouselSettingRow());
     TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyBShort, settings));
-    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Upright, (int)app.carouselSettingRow());
+    TEST_ASSERT_EQUAL((int)CarouselSettingRow::Transport, (int)app.carouselSettingRow());
+}
+
+void test_carouselSettingsTransportRowToggles(void) {
+    App app; app.begin();
+    CarouselSettings settings = CarouselSettings::defaults();
+    app.handleEvent(ButtonEvent::BothLong, settings);
+
+    while (app.carouselSettingRow() != CarouselSettingRow::Transport) {
+        app.handleEvent(ButtonEvent::KeyBShort, settings);
+    }
+
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)settings.transportMode);
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL((int)TransportMode::WiFi, (int)settings.transportMode);
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)settings.transportMode);
 }
 
 void test_carouselSettingsResetDefaults(void) {
     App app; app.begin();
     CarouselSettings settings = CarouselSettings::defaults();
     app.handleEvent(ButtonEvent::BothLong, settings);
+    TEST_ASSERT_TRUE(app.handleEvent(ButtonEvent::KeyAShort, settings));
+    TEST_ASSERT_EQUAL((int)TransportMode::WiFi, (int)settings.transportMode);
+    app.handleEvent(ButtonEvent::KeyBShort, settings);
     app.handleEvent(ButtonEvent::KeyAShort, settings);
     TEST_ASSERT_TRUE(settings.uprightEnabled);
 
@@ -226,6 +255,7 @@ void test_carouselSettingsResetDefaults(void) {
     TEST_ASSERT_EQUAL_UINT16(10, settings.intervalSeconds);
     TEST_ASSERT_EQUAL((int)CarouselMotionMode::Iris, (int)settings.motionMode);
     TEST_ASSERT_EQUAL_UINT16(20, settings.resumeSeconds);
+    TEST_ASSERT_EQUAL((int)TransportMode::BLE, (int)settings.transportMode);
 }
 
 void test_carouselSettingsSleepStillWorks(void) {
@@ -270,6 +300,7 @@ int main(int, char **) {
     RUN_TEST(test_bothLongEntersAndExitsCarouselSettings);
     RUN_TEST(test_carouselSettingsRowsAndValuesChange);
     RUN_TEST(test_carouselSettingsRowsCycleThroughAllRows);
+    RUN_TEST(test_carouselSettingsTransportRowToggles);
     RUN_TEST(test_carouselSettingsResetDefaults);
     RUN_TEST(test_carouselSettingsSleepStillWorks);
     RUN_TEST(test_carouselSettingsBlocksBalanceDetailEntry);

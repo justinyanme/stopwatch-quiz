@@ -58,7 +58,7 @@ private:
     int detailIndex_ = -1;          // -1 = list; >=0 = showing that record's detail
     UsageMetric metric_ = UsageMetric::Cost;
     bool inCarouselSettings_ = false;
-    CarouselSettingRow settingRow_ = CarouselSettingRow::Autoplay;
+    CarouselSettingRow settingRow_ = CarouselSettingRow::Transport;
 };
 
 inline constexpr ViewId nextView(ViewId v) {

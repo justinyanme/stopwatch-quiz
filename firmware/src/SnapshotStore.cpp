@@ -30,16 +30,16 @@ void SnapshotStore::save(const char *key, const uint8_t *bytes, size_t len) {
 
 bool SnapshotStore::loadCarouselSettings(CarouselSettings &out) {
     if (!open_) return false;
-    uint8_t bytes[kSettingsBytesSize];
     size_t sz = prefs.getBytesLength(kCarouselSettingsKey);
-    if (sz != sizeof(bytes)) return false;
-    size_t read = prefs.getBytes(kCarouselSettingsKey, bytes, sizeof(bytes));
+    if (sz != kSettingsV2BytesSize && sz != kSettingsV3BytesSize) return false;
+    uint8_t bytes[kSettingsMaxBytesSize];
+    size_t read = prefs.getBytes(kCarouselSettingsKey, bytes, sz);
     return decodeCarouselSettings(bytes, read, out);
 }
 
 void SnapshotStore::saveCarouselSettings(const CarouselSettings &settings) {
     if (!open_) return;
-    uint8_t bytes[kSettingsBytesSize];
+    uint8_t bytes[kSettingsMaxBytesSize];
     size_t len = 0;
     if (!encodeCarouselSettings(settings, bytes, sizeof(bytes), len)) return;
     prefs.putBytes(kCarouselSettingsKey, bytes, len);

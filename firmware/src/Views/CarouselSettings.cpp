@@ -17,6 +17,8 @@ constexpr int kRowR = 8;
 const char *valueText(const CarouselSettings &settings, CarouselSettingRow row,
                       char *buf, size_t n) {
     switch (row) {
+        case CarouselSettingRow::Transport:
+            return CarouselSettings::transportLabel(settings.transportMode);
         case CarouselSettingRow::Upright:
             return settings.uprightEnabled ? "ON" : "OFF";
         case CarouselSettingRow::Autoplay:
@@ -74,20 +76,23 @@ void drawCarouselSettings(Renderer &renderer, const CarouselSettings &settings,
     c.setTextColor(theme::kTextPrimary);
     c.drawString("SETTINGS", theme::kCenterX, 60);
 
-    drawGroup(c, "DISPLAY", 96);
-    drawRow(c, settings, CarouselSettingRow::Upright, selected, 124);
+    drawGroup(c, "CONNECTION", 96);
+    drawRow(c, settings, CarouselSettingRow::Transport, selected, 124);
 
-    drawGroup(c, "CAROUSEL", 166);
-    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 194);
-    drawRow(c, settings, CarouselSettingRow::Interval, selected, 240);
-    drawRow(c, settings, CarouselSettingRow::Motion, selected, 286);
-    drawRow(c, settings, CarouselSettingRow::Resume, selected, 332);
+    drawGroup(c, "DISPLAY", 166);
+    drawRow(c, settings, CarouselSettingRow::Upright, selected, 194);
+
+    drawGroup(c, "CAROUSEL", 236);
+    drawRow(c, settings, CarouselSettingRow::Autoplay, selected, 264);
+    drawRow(c, settings, CarouselSettingRow::Interval, selected, 310);
+    drawRow(c, settings, CarouselSettingRow::Motion, selected, 356);
+    drawRow(c, settings, CarouselSettingRow::Resume, selected, 402);
 
     c.setTextDatum(middle_center);
     c.setFont(theme::kFontMicro);
     c.setTextColor(theme::kTextMuted);
-    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 388);
-    c.drawString("A+B HOLD SAVE", theme::kCenterX, 414);
+    c.drawString("A CHANGE  B NEXT", theme::kCenterX, 430);
+    c.drawString("A+B HOLD SAVE", theme::kCenterX, 454);
 }
 
 }  // namespace stopwatch::views
