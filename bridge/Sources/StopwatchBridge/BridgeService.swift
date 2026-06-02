@@ -78,6 +78,10 @@ public actor BridgeService {
         }
     }
 
+    static func shouldPublishRefreshResult(taskIsCancelled: Bool = Task.isCancelled) -> Bool {
+        !taskIsCancelled
+    }
+
     private func prewarmLoop() async {
         // Give codexbar serve a moment to come up before the first fetch.
         try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -109,6 +113,10 @@ public actor BridgeService {
         do {
             let usage = try await client.fetch(scope: s)
             let bytes = snapshotCache.recordSuccess(usage)
+            guard Self.shouldPublishRefreshResult() else {
+                FileHandle.standardOutput.write(Data("fetch superseded before publish (scope=\(scope))\n".utf8))
+                return
+            }
             await peripheral.updateSnapshot(bytes)
             await repository.update(.snapshot, bytes: bytes)
             let elapsed = Date().timeIntervalSince(started)
@@ -124,6 +132,10 @@ public actor BridgeService {
             }
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             let failed = snapshotCache.recordFailure()
+            guard Self.shouldPublishRefreshResult() else {
+                FileHandle.standardOutput.write(Data("fetch failure superseded before publish (scope=\(scope))\n".utf8))
+                return
+            }
             await peripheral.updateSnapshot(failed)
             await repository.update(.snapshot, bytes: failed)
         }
@@ -136,12 +148,20 @@ public actor BridgeService {
     private func handleUsageRefresh() async {
         guard !usageTargets.isEmpty else {
             let unavailable = UsageEncoder.unavailableEmpty()
+            guard Self.shouldPublishRefreshResult() else {
+                FileHandle.standardOutput.write(Data("usage refresh superseded before publish\n".utf8))
+                return
+            }
             await peripheral.updateUsageSnapshot(unavailable)
             await repository.update(.balanceUsage, bytes: unavailable)
             return
         }
         let fresh = await usageClient.fetchAll(usageTargets)
         let bytes = usageCache.recordSuccess(fresh)
+        guard Self.shouldPublishRefreshResult() else {
+            FileHandle.standardOutput.write(Data("usage refresh superseded before publish\n".utf8))
+            return
+        }
         await peripheral.updateUsageSnapshot(bytes)
         await repository.update(.balanceUsage, bytes: bytes)
         let summary = fresh.providers.map { "\($0.kind)=\($0.status)" }.joined(separator: " ")
@@ -152,6 +172,10 @@ public actor BridgeService {
         do {
             let cost = try await client.fetchCost(scope: .all)
             let bytes = costCache.recordSuccess(cost)
+            guard Self.shouldPublishRefreshResult() else {
+                FileHandle.standardOutput.write(Data("cost refresh superseded before publish\n".utf8))
+                return
+            }
             await peripheral.updateCostSnapshot(bytes)
             await repository.update(.cost, bytes: bytes)
             FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
@@ -162,6 +186,10 @@ public actor BridgeService {
             }
             FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
             let failed = costCache.recordFailure()
+            guard Self.shouldPublishRefreshResult() else {
+                FileHandle.standardOutput.write(Data("cost failure superseded before publish\n".utf8))
+                return
+            }
             await peripheral.updateCostSnapshot(failed)
             await repository.update(.cost, bytes: failed)
         }
@@ -183,6 +211,10 @@ public actor BridgeService {
         }
         guard !due.isEmpty else { return }
         let fresh = await balanceClient.fetchAll(due, now: now)
+        guard Self.shouldPublishRefreshResult() else {
+            FileHandle.standardOutput.write(Data("balance refresh superseded before publish\n".utf8))
+            return
+        }
         for p in due { lastPolled[p.id] = now }
         let bytes = balanceCache.record(fresh)
         await peripheral.updateBalanceSnapshot(bytes)

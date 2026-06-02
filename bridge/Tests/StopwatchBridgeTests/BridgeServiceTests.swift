@@ -7,4 +7,17 @@ import Testing
         #expect(Protocol.triggerScopeBalances == 0x05)
         #expect(Protocol.triggerScopeUsage == 0x06)
     }
+
+    @Test func cancelledRefreshResultIsNotPublishable() async throws {
+        let task = Task {
+            await Task.yield()
+            return BridgeService.shouldPublishRefreshResult()
+        }
+        task.cancel()
+
+        let publish = await task.value
+        #expect(!publish)
+        #expect(BridgeService.shouldPublishRefreshResult(taskIsCancelled: false))
+        #expect(!BridgeService.shouldPublishRefreshResult(taskIsCancelled: true))
+    }
 }

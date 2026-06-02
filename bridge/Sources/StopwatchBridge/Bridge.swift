@@ -50,7 +50,8 @@ struct StopwatchBridge {
                 try Config.save(cfg)
             }
             print("url=http://\(cfg.httpBindHost):\(cfg.httpPort)")
-            print("apiToken=set length=\(cfg.apiToken.count)")
+            let tokenStatus = cfg.apiToken.isEmpty ? "disabled" : "set"
+            print("apiToken=\(tokenStatus) length=\(cfg.apiToken.count)")
         } catch {
             FileHandle.standardError.write(Data("config error: \(error)\n".utf8))
             exit(1)
