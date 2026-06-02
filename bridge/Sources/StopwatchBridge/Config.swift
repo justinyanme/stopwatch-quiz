@@ -107,6 +107,12 @@ public struct Config: Codable, Equatable, Sendable {
     private static func needsHTTPMigration(_ data: Data) throws -> Bool {
         let object = try JSONSerialization.jsonObject(with: data)
         guard let dict = object as? [String: Any] else { return false }
-        return dict["httpBindHost"] == nil || dict["httpPort"] == nil || dict["apiToken"] == nil
+        return needsMigrationValue(dict["httpBindHost"])
+            || needsMigrationValue(dict["httpPort"])
+            || needsMigrationValue(dict["apiToken"])
+    }
+
+    private static func needsMigrationValue(_ value: Any?) -> Bool {
+        value == nil || value is NSNull
     }
 }
