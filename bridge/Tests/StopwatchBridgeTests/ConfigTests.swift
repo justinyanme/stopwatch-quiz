@@ -23,4 +23,30 @@ import Testing
         let loaded = try Config.load(from: tmp)
         #expect(loaded == nil)
     }
+
+    @Test func defaultsIncludeHTTPServerSettings() throws {
+        let cfg = Config.makeDefault()
+        #expect(cfg.httpBindHost == "127.0.0.1")
+        #expect(cfg.httpPort == 8787)
+        #expect(cfg.apiToken.count == 64)
+        #expect(cfg.apiToken.allSatisfy { $0.isHexDigit })
+    }
+
+    @Test func decodesLegacyConfigWithHTTPDefaults() throws {
+        let legacy = Data("""
+        {
+          "codexbarPort": 54321,
+          "serviceUUID": "\(Protocol.serviceUUID.uuidString)",
+          "logLevel": "info",
+          "spawnCodexbar": true,
+          "instanceHash": "abcd"
+        }
+        """.utf8)
+
+        let decoded = try JSONDecoder().decode(Config.self, from: legacy)
+        #expect(decoded.codexbarPort == 54321)
+        #expect(decoded.httpBindHost == "127.0.0.1")
+        #expect(decoded.httpPort == 8787)
+        #expect(decoded.apiToken.count == 64)
+    }
 }
