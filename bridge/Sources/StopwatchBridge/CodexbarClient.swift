@@ -266,7 +266,7 @@ public actor CodexbarClient {
     private let timeout: TimeInterval
 }
 
-private extension JSONDecoder {
+extension JSONDecoder {
     static let iso8601: JSONDecoder = {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
