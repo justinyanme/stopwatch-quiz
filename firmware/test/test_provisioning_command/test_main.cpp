@@ -52,6 +52,29 @@ void test_rejectsUnknownOrEmptyCommands(void) {
     TEST_ASSERT_FALSE(parseProvisioningCommand("config dump", cmd));
 }
 
+void test_failedParseLeavesOutputUnchanged(void) {
+    ProvisioningCommand cmd;
+    TEST_ASSERT_TRUE(parseProvisioningCommand("api token previous-secret", cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::SetAPIToken, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("previous-secret", cmd.value);
+
+    TEST_ASSERT_FALSE(parseProvisioningCommand("wifi ssid ", cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::SetAPIToken, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("previous-secret", cmd.value);
+
+    TEST_ASSERT_FALSE(parseProvisioningCommand("", cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::SetAPIToken, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("previous-secret", cmd.value);
+
+    TEST_ASSERT_FALSE(parseProvisioningCommand(nullptr, cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::SetAPIToken, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("previous-secret", cmd.value);
+
+    TEST_ASSERT_FALSE(parseProvisioningCommand("config dump", cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::SetAPIToken, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("previous-secret", cmd.value);
+}
+
 void test_longValuesAreTruncatedAndTerminated(void) {
     char line[kProvisioningValueMax + 32] = {};
     const char *prefix = "api token ";
@@ -76,6 +99,7 @@ int main(int, char **) {
     RUN_TEST(test_parseSetCommands);
     RUN_TEST(test_parseShowAndClear);
     RUN_TEST(test_rejectsUnknownOrEmptyCommands);
+    RUN_TEST(test_failedParseLeavesOutputUnchanged);
     RUN_TEST(test_longValuesAreTruncatedAndTerminated);
     return UNITY_END();
 }

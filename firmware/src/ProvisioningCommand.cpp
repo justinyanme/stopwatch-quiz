@@ -18,29 +18,50 @@ bool copyValue(const char *value, ProvisioningCommand &out) {
 bool setWithValue(const char *line, const char *prefix,
                   ProvisioningAction action, ProvisioningCommand &out) {
     if (!startsWith(line, prefix)) return false;
+    if (!copyValue(line + std::strlen(prefix), out)) return false;
     out.action = action;
-    return copyValue(line + std::strlen(prefix), out);
+    return true;
 }
 
 }  // namespace
 
 bool parseProvisioningCommand(const char *line, ProvisioningCommand &out) {
     if (!line || line[0] == '\0') return false;
-    out.value[0] = '\0';
 
-    if (setWithValue(line, "wifi ssid ", ProvisioningAction::SetWiFiSSID, out)) return true;
-    if (setWithValue(line, "wifi password ", ProvisioningAction::SetWiFiPassword, out)) return true;
-    if (setWithValue(line, "api base-url ", ProvisioningAction::SetAPIBaseURL, out)) return true;
-    if (setWithValue(line, "api cf-client-id ", ProvisioningAction::SetCFAccessClientID, out)) return true;
-    if (setWithValue(line, "api cf-client-secret ", ProvisioningAction::SetCFAccessClientSecret, out)) return true;
-    if (setWithValue(line, "api token ", ProvisioningAction::SetAPIToken, out)) return true;
+    ProvisioningCommand candidate;
+    if (setWithValue(line, "wifi ssid ", ProvisioningAction::SetWiFiSSID, candidate)) {
+        out = candidate;
+        return true;
+    }
+    if (setWithValue(line, "wifi password ", ProvisioningAction::SetWiFiPassword, candidate)) {
+        out = candidate;
+        return true;
+    }
+    if (setWithValue(line, "api base-url ", ProvisioningAction::SetAPIBaseURL, candidate)) {
+        out = candidate;
+        return true;
+    }
+    if (setWithValue(line, "api cf-client-id ", ProvisioningAction::SetCFAccessClientID, candidate)) {
+        out = candidate;
+        return true;
+    }
+    if (setWithValue(line, "api cf-client-secret ", ProvisioningAction::SetCFAccessClientSecret, candidate)) {
+        out = candidate;
+        return true;
+    }
+    if (setWithValue(line, "api token ", ProvisioningAction::SetAPIToken, candidate)) {
+        out = candidate;
+        return true;
+    }
 
     if (std::strcmp(line, "config show") == 0) {
-        out.action = ProvisioningAction::ShowConfig;
+        candidate.action = ProvisioningAction::ShowConfig;
+        out = candidate;
         return true;
     }
     if (std::strcmp(line, "config clear") == 0) {
-        out.action = ProvisioningAction::ClearConfig;
+        candidate.action = ProvisioningAction::ClearConfig;
+        out = candidate;
         return true;
     }
     return false;
