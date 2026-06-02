@@ -8,6 +8,8 @@ public actor BridgeService {
     private let supervisor: CodexbarSupervisor
     private let client: CodexbarClient
     private let peripheral: GATTPeripheral
+    private let repository: SnapshotRepository
+    private let httpServer: LocalHTTPServer
     private var snapshotCache = SnapshotCache()
     private var costCache = CostCache()
     private let balanceClient: BalanceClient
@@ -32,6 +34,21 @@ public actor BridgeService {
         }
         // GATTPeripheral is @MainActor; constructing it from an async init hops to main.
         self.peripheral = await GATTPeripheral()
+        self.repository = SnapshotRepository()
+        let repository = self.repository
+        let refreshBridge = BridgeRefreshBridge()
+        let scheduler = RefreshScheduler { scope in
+            await refreshBridge.refresh(scope: scope)
+        }
+        self.httpServer = LocalHTTPServer(
+            host: config.httpBindHost,
+            port: config.httpPort,
+            handler: SnapshotHTTPHandler(
+                repository: repository,
+                authenticator: HTTPAuthenticator(apiToken: config.apiToken),
+                scheduler: scheduler
+            ).handle)
+        refreshBridge.service = self
     }
 
     public func run() async {
@@ -44,6 +61,8 @@ public actor BridgeService {
         await MainActor.run { [self] in
             self.peripheral.delegate = self
         }
+        httpServer.start()
+        FileHandle.standardOutput.write(Data("http listening on http://\(config.httpBindHost):\(config.httpPort)\n".utf8))
 
         // Background prewarm loop: keeps the GATT snapshot fresh even when no
         // watch is connected. Watch reads always see the latest cached frame
@@ -91,6 +110,7 @@ public actor BridgeService {
             let usage = try await client.fetch(scope: s)
             let bytes = snapshotCache.recordSuccess(usage)
             await peripheral.updateSnapshot(bytes)
+            await repository.update(.snapshot, bytes: bytes)
             let elapsed = Date().timeIntervalSince(started)
             FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
                                                         Int(scope), usage.providers.count, elapsed).utf8))
@@ -103,7 +123,9 @@ public actor BridgeService {
                 return
             }
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
-            await peripheral.updateSnapshot(snapshotCache.recordFailure())
+            let failed = snapshotCache.recordFailure()
+            await peripheral.updateSnapshot(failed)
+            await repository.update(.snapshot, bytes: failed)
         }
         // Refresh cost only on a full (all-providers) refresh / prewarm; narrow per-provider
         // usage triggers don't need a full /cost re-fetch (codexbar /cost is slow). Scope 0x04
@@ -113,10 +135,15 @@ public actor BridgeService {
 
     private func handleUsageRefresh() async {
         guard !usageTargets.isEmpty else {
-            await peripheral.updateUsageSnapshot(UsageEncoder.unavailableEmpty()); return
+            let unavailable = UsageEncoder.unavailableEmpty()
+            await peripheral.updateUsageSnapshot(unavailable)
+            await repository.update(.balanceUsage, bytes: unavailable)
+            return
         }
         let fresh = await usageClient.fetchAll(usageTargets)
-        await peripheral.updateUsageSnapshot(usageCache.recordSuccess(fresh))
+        let bytes = usageCache.recordSuccess(fresh)
+        await peripheral.updateUsageSnapshot(bytes)
+        await repository.update(.balanceUsage, bytes: bytes)
         let summary = fresh.providers.map { "\($0.kind)=\($0.status)" }.joined(separator: " ")
         FileHandle.standardOutput.write(Data("usage ok: \(summary)\n".utf8))
     }
@@ -124,7 +151,9 @@ public actor BridgeService {
     private func handleCostRefresh() async {
         do {
             let cost = try await client.fetchCost(scope: .all)
-            await peripheral.updateCostSnapshot(costCache.recordSuccess(cost))
+            let bytes = costCache.recordSuccess(cost)
+            await peripheral.updateCostSnapshot(bytes)
+            await repository.update(.cost, bytes: bytes)
             FileHandle.standardOutput.write(Data("cost ok: providers=\(cost.providers.count)\n".utf8))
         } catch {
             if CodexbarClient.isCancellation(error) {
@@ -132,7 +161,9 @@ public actor BridgeService {
                 return
             }
             FileHandle.standardError.write(Data("cost fetch failed: \(error)\n".utf8))
-            await peripheral.updateCostSnapshot(costCache.recordFailure())
+            let failed = costCache.recordFailure()
+            await peripheral.updateCostSnapshot(failed)
+            await repository.update(.cost, bytes: failed)
         }
     }
 
@@ -155,6 +186,7 @@ public actor BridgeService {
         for p in due { lastPolled[p.id] = now }
         let bytes = balanceCache.record(fresh)
         await peripheral.updateBalanceSnapshot(bytes)
+        await repository.update(.balances, bytes: bytes)
         let summary = fresh.providers.map { "\($0.name)=\($0.status)" }.joined(separator: " ")
         FileHandle.standardOutput.write(Data("balance poll: \(summary)\n".utf8))
     }
@@ -163,6 +195,14 @@ public actor BridgeService {
 extension BridgeService: GATTPeripheralDelegate {
     public nonisolated func gattPeripheral(_ peripheral: GATTPeripheral, refreshRequestedFor scope: UInt8) async {
         await handleRefresh(scope: scope)
+    }
+}
+
+private final class BridgeRefreshBridge: @unchecked Sendable {
+    weak var service: BridgeService?
+
+    func refresh(scope: UInt8) async {
+        await service?.handleRefresh(scope: scope)
     }
 }
 
