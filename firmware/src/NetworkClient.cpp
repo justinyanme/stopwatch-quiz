@@ -7,6 +7,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #endif
 
 namespace stopwatch {
@@ -95,8 +96,18 @@ NetworkClient::FetchResult NetworkClient::fetchPath(
 #ifdef ARDUINO
     char url[256];
     if (!appendURL(url, sizeof(url), cfg.apiBaseURL, path)) return FetchResult::APIMissing;
+    // The bridge is reached over HTTPS through Cloudflare Tunnel, so an https URL
+    // needs a TLS client. setInsecure() skips cert validation — the origin Bearer
+    // token + Cloudflare Access provide auth; pin the Cloudflare CA here for a
+    // stricter posture. http:// (e.g. a direct loopback test) uses a plain client.
+    WiFiClient plainClient;
+    WiFiClientSecure secureClient;
+    const bool isHttps = std::strncmp(url, "https://", 8) == 0;
+    if (isHttps) secureClient.setInsecure();
     HTTPClient http;
-    if (!http.begin(url)) return FetchResult::RequestFailed;
+    const bool began = isHttps ? http.begin(secureClient, url) : http.begin(plainClient, url);
+    if (!began) return FetchResult::RequestFailed;
+    http.setConnectTimeout(8000);
     http.addHeader("CF-Access-Client-Id", cfg.cfClientID);
     http.addHeader("CF-Access-Client-Secret", cfg.cfClientSecret);
     char auth[224];
@@ -145,8 +156,18 @@ NetworkClient::FetchResult NetworkClient::postPath(const char *path) {
 #ifdef ARDUINO
     char url[256];
     if (!appendURL(url, sizeof(url), cfg.apiBaseURL, path)) return FetchResult::APIMissing;
+    // The bridge is reached over HTTPS through Cloudflare Tunnel, so an https URL
+    // needs a TLS client. setInsecure() skips cert validation — the origin Bearer
+    // token + Cloudflare Access provide auth; pin the Cloudflare CA here for a
+    // stricter posture. http:// (e.g. a direct loopback test) uses a plain client.
+    WiFiClient plainClient;
+    WiFiClientSecure secureClient;
+    const bool isHttps = std::strncmp(url, "https://", 8) == 0;
+    if (isHttps) secureClient.setInsecure();
     HTTPClient http;
-    if (!http.begin(url)) return FetchResult::RequestFailed;
+    const bool began = isHttps ? http.begin(secureClient, url) : http.begin(plainClient, url);
+    if (!began) return FetchResult::RequestFailed;
+    http.setConnectTimeout(8000);
     http.addHeader("CF-Access-Client-Id", cfg.cfClientID);
     http.addHeader("CF-Access-Client-Secret", cfg.cfClientSecret);
     char auth[224];
