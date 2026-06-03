@@ -87,6 +87,7 @@ public actor BridgeService {
         }
         let s = CodexbarClient.Scope(rawByte: scope)
         let started = Date()
+        let usageSucceeded: Bool
         do {
             let usage = try await client.fetch(scope: s)
             let bytes = snapshotCache.recordSuccess(usage)
@@ -94,6 +95,7 @@ public actor BridgeService {
             let elapsed = Date().timeIntervalSince(started)
             FileHandle.standardOutput.write(Data(String(format: "fetch ok: scope=%d providers=%d %.1fs\n",
                                                         Int(scope), usage.providers.count, elapsed).utf8))
+            usageSucceeded = true
         } catch {
             if CodexbarClient.isCancellation(error) {
                 // A newer trigger superseded this fetch (trigger writes are serialized by
@@ -104,11 +106,18 @@ public actor BridgeService {
             }
             FileHandle.standardError.write(Data("fetch failed: \(error)\n".utf8))
             await peripheral.updateSnapshot(snapshotCache.recordFailure())
+            usageSucceeded = false
         }
         // Refresh cost only on a full (all-providers) refresh / prewarm; narrow per-provider
         // usage triggers don't need a full /cost re-fetch (codexbar /cost is slow). Scope 0x04
         // remains the explicit cost-only path (handled by the early return above).
-        if scope == 0 { await handleCostRefresh() }
+        if Self.shouldRefreshCostAfterUsage(scope: scope, usageSucceeded: usageSucceeded) {
+            await handleCostRefresh()
+        }
+    }
+
+    static func shouldRefreshCostAfterUsage(scope: UInt8, usageSucceeded: Bool) -> Bool {
+        scope == 0 && usageSucceeded
     }
 
     private func handleUsageRefresh() async {

@@ -54,21 +54,21 @@ public actor BalanceClient {
                 lastStatus = s
             case .success(let obj):
                 // Handle unlimited sentinel: when unlimitedIfNull and the balance path is null/missing.
-                if attempt.unlimitedIfNull && rawIsNull(attempt.balancePath, in: obj) {
-                    let currency = resolveCurrency(attempt.currency, in: obj)
+                if attempt.unlimitedIfNull && Self.rawIsNull(attempt.balancePath, in: obj) {
+                    let currency = Self.resolveCurrency(attempt.currency, in: obj)
                     return record(status: .ok, remaining: nil, unlimited: true,
                                   usage: nil, currency: currency, updatedAt: now, isLow: false)
                 }
-                guard let rawBal = numberAt(attempt.balancePath, in: obj) else {
+                guard let rawBal = Self.numberAt(attempt.balancePath, in: obj) else {
                     FileHandle.standardError.write(Data("balance: \(p.name) HTTP 200 but balancePath '\(attempt.balancePath)' not numeric\n".utf8))
                     lastStatus = .unreachable; continue
                 }
                 // Raw values may be provider-internal units (e.g. AiHubMix quota, 500000 = $1);
                 // `scale` divides them into the currency amount.
                 let bal = rawBal / scale
-                let usage = attempt.usagePath.flatMap { numberAt($0, in: obj) }.map { $0 / scale }
+                let usage = attempt.usagePath.flatMap { Self.numberAt($0, in: obj) }.map { $0 / scale }
                 let remaining = usage.map { bal - $0 } ?? bal
-                let currency = resolveCurrency(attempt.currency, in: obj)
+                let currency = Self.resolveCurrency(attempt.currency, in: obj)
                 let low = p.lowThreshold.map { remaining < $0 } ?? false
                 return record(status: .ok, remaining: remaining, unlimited: false,
                               usage: usage, currency: currency, updatedAt: now, isLow: low)
@@ -155,7 +155,7 @@ public actor BalanceClient {
         return current
     }
 
-    private func numberAt(_ path: String, in root: Any) -> Double? {
+    private static func numberAt(_ path: String, in root: Any) -> Double? {
         // Under JSONSerialization, numbers come back as NSNumber; check it first
         // before the bridged Double/Int cases to avoid ambiguous bridging.
         switch BalanceClient.value(at: path, in: root) {
@@ -165,12 +165,12 @@ public actor BalanceClient {
         }
     }
 
-    private func rawIsNull(_ path: String, in root: Any) -> Bool {
+    private static func rawIsNull(_ path: String, in root: Any) -> Bool {
         let v = BalanceClient.value(at: path, in: root)
         return v == nil || v is NSNull
     }
 
-    private func resolveCurrency(_ spec: String, in root: Any) -> String {
+    private static func resolveCurrency(_ spec: String, in root: Any) -> String {
         if spec.hasPrefix("path:") {
             let p = String(spec.dropFirst("path:".count))
             return (BalanceClient.value(at: p, in: root) as? String)?.uppercased() ?? ""
