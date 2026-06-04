@@ -11,9 +11,9 @@ public struct GeminiUsageCollector: Sendable {
 
     public static func decodeQuotaResponse(_ data: Data) throws -> NormalizedUsage.Provider {
         let raw = try JSONDecoder().decode(RawQuota.self, from: data)
-        let pro = raw.quotaBuckets.filter { $0.modelId.lowercased().contains("pro") }
+        let pro = raw.buckets.filter { $0.modelId.lowercased().contains("pro") }
             .min { ($0.remainingFraction ?? 1) < ($1.remainingFraction ?? 1) }
-        let flash = raw.quotaBuckets.filter { $0.modelId.lowercased().contains("flash") }
+        let flash = raw.buckets.filter { $0.modelId.lowercased().contains("flash") }
             .min { ($0.remainingFraction ?? 1) < ($1.remainingFraction ?? 1) }
         return .init(
             providerID: .gemini,
@@ -36,8 +36,9 @@ public struct GeminiUsageCollector: Sendable {
         req.httpBody = Data(#"{}"#.utf8)
         req.timeoutInterval = 20
         let (data, response) = try await session.data(for: req)
-        if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
-            throw DirectCollectorError.auth
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard status == 200 else {
+            throw (status == 401 || status == 403) ? DirectCollectorError.auth : DirectCollectorError.http(status)
         }
         return try Self.decodeQuotaResponse(data)
     }
@@ -62,8 +63,17 @@ public struct GeminiUsageCollector: Sendable {
     }
 
     private struct RawQuota: Decodable {
-        var quotaBuckets: [Bucket]
+        var buckets: [Bucket]
         var tier: String?
+        // Live API returns "buckets"; tolerate the older "quotaBuckets" shape too.
+        enum CodingKeys: String, CodingKey { case buckets, quotaBuckets, tier }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let primary = try c.decodeIfPresent([Bucket].self, forKey: .buckets)
+            let legacy = try c.decodeIfPresent([Bucket].self, forKey: .quotaBuckets)
+            buckets = primary ?? legacy ?? []
+            tier = try c.decodeIfPresent(String.self, forKey: .tier)
+        }
         struct Bucket: Decodable {
             var modelId: String
             var remainingFraction: Double?

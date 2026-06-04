@@ -11,38 +11,48 @@ public struct CodexUsageCollector: Sendable {
 
     public static func decodeUsageResponse(_ data: Data, now: Date) throws -> NormalizedUsage.Provider {
         let raw = try JSONDecoder().decode(RawWhamUsage.self, from: data)
+        func resetDate(_ unix: Int?) -> Date? { unix.map { Date(timeIntervalSince1970: Double($0)) } }
         return .init(
             providerID: .codex,
             status: .ok,
             sessionPct: raw.rateLimit?.primaryWindow?.usedPercent.map(percentByte),
             weekPct: raw.rateLimit?.secondaryWindow?.usedPercent.map(percentByte),
-            sessionResetAt: CollectorDate.parseISO8601(raw.rateLimit?.primaryWindow?.resetsAt),
-            weekResetAt: CollectorDate.parseISO8601(raw.rateLimit?.secondaryWindow?.resetsAt),
+            sessionResetAt: resetDate(raw.rateLimit?.primaryWindow?.resetAt),
+            weekResetAt: resetDate(raw.rateLimit?.secondaryWindow?.resetAt),
             credits: raw.credits?.balance,
-            plan: ProviderPlan(fromString: raw.account?.planType)
+            // `plan_type` is top-level on the live response; older shape nested it under `account`.
+            plan: ProviderPlan(fromString: raw.planType ?? raw.account?.planType)
         )
     }
 
     public func fetch(now: Date = Date()) async throws -> NormalizedUsage.Provider {
-        let token = try Self.loadAccessToken(authPath: authPath)
+        let auth = try Self.loadAuth(authPath: authPath)
         var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(auth.token)", forHTTPHeaderField: "Authorization")
+        // ChatGPT's backend rejects the default URLSession User-Agent; match CodexBar's request.
+        req.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let accountId = auth.accountId, !accountId.isEmpty {
+            req.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
         req.timeoutInterval = 20
         let (data, response) = try await session.data(for: req)
-        if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
-            throw DirectCollectorError.auth
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard status == 200 else {
+            throw (status == 401 || status == 403) ? DirectCollectorError.auth : DirectCollectorError.http(status)
         }
         return try Self.decodeUsageResponse(data, now: now)
     }
 
-    static func loadAccessToken(authPath: URL) throws -> String {
+    static func loadAuth(authPath: URL) throws -> (token: String, accountId: String?) {
         let data = try Data(contentsOf: authPath)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        if let tokens = obj?["tokens"] as? [String: Any],
-           let access = tokens["access_token"] as? String ?? tokens["accessToken"] as? String {
-            return access
+        guard let tokens = obj?["tokens"] as? [String: Any],
+              let access = tokens["access_token"] as? String ?? tokens["accessToken"] as? String else {
+            throw DirectCollectorError.auth
         }
-        throw DirectCollectorError.auth
+        let accountId = tokens["account_id"] as? String ?? tokens["accountId"] as? String
+        return (access, accountId)
     }
 
     private static func percentByte(_ value: Double) -> UInt8 {
@@ -53,7 +63,8 @@ public struct CodexUsageCollector: Sendable {
         var rateLimit: RateLimit?
         var credits: Credits?
         var account: Account?
-        enum CodingKeys: String, CodingKey { case rateLimit = "rate_limit", credits, account }
+        var planType: String?
+        enum CodingKeys: String, CodingKey { case rateLimit = "rate_limit", credits, account, planType = "plan_type" }
         struct RateLimit: Decodable {
             var primaryWindow: Window?
             var secondaryWindow: Window?
@@ -61,8 +72,8 @@ public struct CodexUsageCollector: Sendable {
         }
         struct Window: Decodable {
             var usedPercent: Double?
-            var resetsAt: String?
-            enum CodingKeys: String, CodingKey { case usedPercent = "used_percent", resetsAt = "resets_at" }
+            var resetAt: Int?       // unix epoch seconds
+            enum CodingKeys: String, CodingKey { case usedPercent = "used_percent", resetAt = "reset_at" }
         }
         struct Credits: Decodable { var balance: Double? }
         struct Account: Decodable {
@@ -74,5 +85,6 @@ public struct CodexUsageCollector: Sendable {
 
 public enum DirectCollectorError: Error, Sendable {
     case auth
+    case http(Int)
     case unavailable
 }

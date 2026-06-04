@@ -14,8 +14,9 @@ public struct ClaudeUsageCollector: Sendable {
         return .init(
             providerID: .claude,
             status: .ok,
-            sessionPct: raw.fiveHour?.usedPercent.map(percentByte),
-            weekPct: raw.sevenDay?.usedPercent.map(percentByte),
+            // `utilization` is already a 0-100 percent on the live response.
+            sessionPct: raw.fiveHour?.utilization.map(percentByte),
+            weekPct: raw.sevenDay?.utilization.map(percentByte),
             sessionResetAt: CollectorDate.parseISO8601(raw.fiveHour?.resetsAt),
             weekResetAt: CollectorDate.parseISO8601(raw.sevenDay?.resetsAt),
             credits: nil,
@@ -27,11 +28,16 @@ public struct ClaudeUsageCollector: Sendable {
         let token = try Self.loadAccessToken(credentialsPath: credentialsPath)
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        // Anthropic's OAuth usage endpoint expects a claude-code client User-Agent.
+        req.setValue("claude-code/2.1.0", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 20
         let (data, response) = try await session.data(for: req)
-        if let http = response as? HTTPURLResponse, http.statusCode == 401 || http.statusCode == 403 {
-            throw DirectCollectorError.auth
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        guard status == 200 else {
+            throw (status == 401 || status == 403) ? DirectCollectorError.auth : DirectCollectorError.http(status)
         }
         return try Self.decodeOAuthUsage(data)
     }
@@ -39,6 +45,11 @@ public struct ClaudeUsageCollector: Sendable {
     static func loadAccessToken(credentialsPath: URL) throws -> String {
         let data = try Data(contentsOf: credentialsPath)
         let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        // Current Claude credentials nest the token under "claudeAiOauth".
+        if let oauth = obj?["claudeAiOauth"] as? [String: Any],
+           let token = (oauth["accessToken"] ?? oauth["access_token"]) as? String {
+            return token
+        }
         if let token = obj?["access_token"] as? String { return token }
         if let token = obj?["accessToken"] as? String { return token }
         throw DirectCollectorError.auth
@@ -58,10 +69,10 @@ public struct ClaudeUsageCollector: Sendable {
             case subscriptionType = "subscription_type"
         }
         struct Window: Decodable {
-            var usedPercent: Double?
+            var utilization: Double?
             var resetsAt: String?
             enum CodingKeys: String, CodingKey {
-                case usedPercent = "used_percent"
+                case utilization
                 case resetsAt = "resets_at"
             }
         }

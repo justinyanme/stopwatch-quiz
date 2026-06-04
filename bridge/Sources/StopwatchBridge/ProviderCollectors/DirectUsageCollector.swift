@@ -17,11 +17,17 @@ public actor DirectUsageCollector {
 
     public func fetchAll(now: Date = Date()) async -> NormalizedUsage {
         var providers: [NormalizedUsage.Provider] = []
-        if let codexProvider = try? await codex.fetch(now: now) { providers.append(codexProvider) }
-        if let claudeProvider = try? await claude.fetch() { providers.append(claudeProvider) }
-        if let geminiProvider = try? await gemini.fetch() { providers.append(geminiProvider) }
+        do { providers.append(try await codex.fetch(now: now)) } catch { Self.log("codex", error) }
+        do { providers.append(try await claude.fetch()) } catch { Self.log("claude", error) }
+        do { providers.append(try await gemini.fetch()) } catch { Self.log("gemini", error) }
         var flags: SnapshotFlags = []
         if providers.isEmpty { flags.insert(.providerMissing) }
         return NormalizedUsage(capturedAt: now, flags: flags, providers: providers)
+    }
+
+    /// Surfaces why a provider was dropped (auth, HTTP status, decode) instead of
+    /// silently swallowing it — the watch otherwise just shows "no source".
+    private static func log(_ provider: String, _ error: Error) {
+        FileHandle.standardError.write(Data("usage \(provider) unavailable: \(error)\n".utf8))
     }
 }
