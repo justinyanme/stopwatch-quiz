@@ -42,6 +42,13 @@ void test_parseShowAndClear(void) {
     TEST_ASSERT_EQUAL_STRING("", cmd.value);
 }
 
+void test_parseDownloadModeTrigger(void) {
+    ProvisioningCommand cmd;
+    TEST_ASSERT_TRUE(parseProvisioningCommand("STOPWATCH-DL", cmd));
+    TEST_ASSERT_EQUAL((int)ProvisioningAction::EnterDownloadMode, (int)cmd.action);
+    TEST_ASSERT_EQUAL_STRING("", cmd.value);
+}
+
 void test_rejectsUnknownOrEmptyCommands(void) {
     ProvisioningCommand cmd;
     TEST_ASSERT_FALSE(parseProvisioningCommand("", cmd));
@@ -98,6 +105,7 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_parseSetCommands);
     RUN_TEST(test_parseShowAndClear);
+    RUN_TEST(test_parseDownloadModeTrigger);
     RUN_TEST(test_rejectsUnknownOrEmptyCommands);
     RUN_TEST(test_failedParseLeavesOutputUnchanged);
     RUN_TEST(test_longValuesAreTruncatedAndTerminated);

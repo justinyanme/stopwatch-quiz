@@ -5,6 +5,7 @@
 #ifdef ARDUINO
 #include <Arduino.h>
 #include <Preferences.h>
+#include "soc/rtc_cntl_reg.h"
 #endif
 
 namespace stopwatch {
@@ -114,6 +115,12 @@ void SerialProvisioning::applyLine(const char *line) {
         case ProvisioningAction::ShowConfig: printConfig(); return;
         case ProvisioningAction::ClearConfig:
             Serial.println(clearStore() ? "[provision] cleared" : "[provision] clear failed");
+            return;
+        case ProvisioningAction::EnterDownloadMode:
+            Serial.println("[stopwatch-fw] flash trigger received; entering download mode");
+            Serial.flush();
+            REG_WRITE(RTC_CNTL_OPTION1_REG, 0x1);
+            esp_restart();
             return;
     }
     Serial.println(saved ? "[provision] saved" : "[provision] save failed");

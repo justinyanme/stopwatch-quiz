@@ -12,6 +12,7 @@ enum class ProvisioningAction {
     SetAPIToken,
     ShowConfig,
     ClearConfig,
+    EnterDownloadMode,
 };
 
 struct ProvisioningCommand {

@@ -64,6 +64,11 @@ bool parseProvisioningCommand(const char *line, ProvisioningCommand &out) {
         out = candidate;
         return true;
     }
+    if (std::strcmp(line, "STOPWATCH-DL") == 0) {
+        candidate.action = ProvisioningAction::EnterDownloadMode;
+        out = candidate;
+        return true;
+    }
     return false;
 }
 
