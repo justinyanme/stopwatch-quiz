@@ -1,4 +1,5 @@
 #include "NetworkClient.h"
+#include "Protocol.h"
 #include "SerialProvisioning.h"
 #include <cstdio>
 #include <cstring>
@@ -14,6 +15,13 @@ namespace stopwatch {
 
 namespace {
 SerialProvisioning netStore;
+constexpr uint32_t kRefreshPollInitialDelayMs = 150;
+constexpr uint32_t kRefreshPollIntervalMs = 350;
+constexpr uint32_t kRefreshPollTimeoutMs = 6000;
+
+#ifndef ARDUINO
+const NetworkClient::NativeTestHooks *nativeTestHooks = nullptr;
+#endif
 
 bool appendURL(char *out, size_t n, const char *base, const char *path) {
     if (!base || !path || !out || n == 0) return false;
@@ -21,6 +29,27 @@ bool appendURL(char *out, size_t n, const char *base, const char *path) {
     bool slash = blen > 0 && base[blen - 1] == '/';
     int written = std::snprintf(out, n, "%s%s%s", base, slash ? "" : "/", path[0] == '/' ? path + 1 : path);
     return written > 0 && (size_t)written < n;
+}
+
+uint32_t readU32(const uint8_t *b) {
+    return (uint32_t)b[0] |
+           ((uint32_t)b[1] << 8) |
+           ((uint32_t)b[2] << 16) |
+           ((uint32_t)b[3] << 24);
+}
+
+uint32_t capturedAt(const uint8_t *bytes, size_t len) {
+    return len >= 8 ? readU32(bytes + 4) : 0;
+}
+
+void refreshPollDelay(uint32_t ms) {
+#ifdef ARDUINO
+    delay(ms);
+#else
+    if (nativeTestHooks && nativeTestHooks->delayMs) {
+        nativeTestHooks->delayMs(ms, nativeTestHooks->context);
+    }
+#endif
 }
 
 #ifdef ARDUINO
@@ -59,6 +88,12 @@ private:
 #endif
 }  // namespace
 
+#ifndef ARDUINO
+void NetworkClient::setNativeTestHooks(const NativeTestHooks *hooks) {
+    nativeTestHooks = hooks;
+}
+#endif
+
 void NetworkClient::begin() {
     netStore.begin();
 }
@@ -87,6 +122,11 @@ NetworkClient::FetchResult NetworkClient::fetchPath(
     size_t &outLen)
 {
     outLen = 0;
+#ifndef ARDUINO
+    if (nativeTestHooks && nativeTestHooks->get) {
+        return nativeTestHooks->get(path, outBytes, bufSize, outLen, nativeTestHooks->context);
+    }
+#endif
     DeviceNetworkConfig cfg;
     netStore.load(cfg);
     if (!cfg.apiConfigured()) return FetchResult::APIMissing;
@@ -147,6 +187,11 @@ NetworkClient::FetchResult NetworkClient::fetchPath(
 }
 
 NetworkClient::FetchResult NetworkClient::postPath(const char *path) {
+#ifndef ARDUINO
+    if (nativeTestHooks && nativeTestHooks->post) {
+        return nativeTestHooks->post(path, nativeTestHooks->context);
+    }
+#endif
     DeviceNetworkConfig cfg;
     netStore.load(cfg);
     if (!cfg.apiConfigured()) return FetchResult::APIMissing;
@@ -204,6 +249,86 @@ NetworkClient::FetchResult NetworkClient::refresh(uint8_t scope) {
     char path[32];
     std::snprintf(path, sizeof(path), "/v1/refresh?scope=%u", (unsigned)scope);
     return postPath(path);
+}
+
+NetworkClient::FetchResult NetworkClient::refreshAndFetch(
+    uint8_t scope,
+    Fetcher fetcher,
+    uint8_t *outBytes,
+    size_t bufSize,
+    size_t &outLen)
+{
+    // The bridge accepts refreshes asynchronously; use capturedAt as the common
+    // frame-level signal that the repository has published a newer payload.
+    size_t baselineLen = 0;
+    FetchResult baseline = (this->*fetcher)(outBytes, bufSize, baselineLen);
+    const bool hasBaseline = baseline == FetchResult::Ok;
+    const uint32_t baselineCapturedAt = hasBaseline ? capturedAt(outBytes, baselineLen) : 0;
+
+    FetchResult rc = refresh(scope);
+    if (rc != FetchResult::Ok) {
+        outLen = 0;
+        return rc;
+    }
+
+    uint32_t waited = 0;
+    bool hasOkPayload = false;
+    FetchResult lastResult = FetchResult::RequestFailed;
+
+    while (waited <= kRefreshPollTimeoutMs) {
+        const uint32_t delayMs = waited == 0 ? kRefreshPollInitialDelayMs : kRefreshPollIntervalMs;
+        refreshPollDelay(delayMs);
+        waited += delayMs;
+
+        rc = (this->*fetcher)(outBytes, bufSize, outLen);
+        lastResult = rc;
+        if (rc != FetchResult::Ok) continue;
+
+        hasOkPayload = true;
+        const uint32_t currentCapturedAt = capturedAt(outBytes, outLen);
+        if (!hasBaseline || currentCapturedAt != baselineCapturedAt) {
+            return FetchResult::Ok;
+        }
+    }
+
+    if (hasOkPayload && baselineCapturedAt != 0) {
+        return FetchResult::Ok;
+    }
+    outLen = 0;
+    return lastResult == FetchResult::Ok ? FetchResult::RequestFailed : lastResult;
+}
+
+NetworkClient::FetchResult NetworkClient::refreshAndFetchSnapshot(
+    uint8_t scope,
+    uint8_t *outBytes,
+    size_t bufSize,
+    size_t &outLen)
+{
+    return refreshAndFetch(scope, &NetworkClient::fetchSnapshot, outBytes, bufSize, outLen);
+}
+
+NetworkClient::FetchResult NetworkClient::refreshAndFetchCost(
+    uint8_t *outBytes,
+    size_t bufSize,
+    size_t &outLen)
+{
+    return refreshAndFetch(kTriggerScopeCost, &NetworkClient::fetchCost, outBytes, bufSize, outLen);
+}
+
+NetworkClient::FetchResult NetworkClient::refreshAndFetchBalances(
+    uint8_t *outBytes,
+    size_t bufSize,
+    size_t &outLen)
+{
+    return refreshAndFetch(kTriggerScopeBalances, &NetworkClient::fetchBalances, outBytes, bufSize, outLen);
+}
+
+NetworkClient::FetchResult NetworkClient::refreshAndFetchUsage(
+    uint8_t *outBytes,
+    size_t bufSize,
+    size_t &outLen)
+{
+    return refreshAndFetch(kTriggerScopeUsage, &NetworkClient::fetchUsage, outBytes, bufSize, outLen);
 }
 
 }  // namespace stopwatch
