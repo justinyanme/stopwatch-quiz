@@ -30,7 +30,7 @@ NetworkClient::FetchResult TransportClient::fetchSnapshot(
     size_t &outLen)
 {
     if (settings.transportMode == TransportMode::WiFi) {
-        return net_.fetchSnapshot(outBytes, bufSize, outLen);
+        return net_.refreshAndFetchSnapshot(scope, outBytes, bufSize, outLen);
     }
 #ifdef ARDUINO
     return mapBleResult(ble_.fetch(scope, outBytes, bufSize, outLen));
@@ -50,7 +50,7 @@ NetworkClient::FetchResult TransportClient::fetchCost(
     size_t &outLen)
 {
     if (settings.transportMode == TransportMode::WiFi) {
-        return net_.fetchCost(outBytes, bufSize, outLen);
+        return net_.refreshAndFetchCost(outBytes, bufSize, outLen);
     }
 #ifdef ARDUINO
     return mapBleResult(ble_.fetchCost(outBytes, bufSize, outLen));
@@ -69,7 +69,7 @@ NetworkClient::FetchResult TransportClient::fetchBalances(
     size_t &outLen)
 {
     if (settings.transportMode == TransportMode::WiFi) {
-        return net_.fetchBalances(outBytes, bufSize, outLen);
+        return net_.refreshAndFetchBalances(outBytes, bufSize, outLen);
     }
 #ifdef ARDUINO
     return mapBleResult(ble_.fetchBalances(outBytes, bufSize, outLen));
@@ -88,7 +88,7 @@ NetworkClient::FetchResult TransportClient::fetchUsage(
     size_t &outLen)
 {
     if (settings.transportMode == TransportMode::WiFi) {
-        return net_.fetchUsage(outBytes, bufSize, outLen);
+        return net_.refreshAndFetchUsage(outBytes, bufSize, outLen);
     }
 #ifdef ARDUINO
     return mapBleResult(ble_.fetchUsage(outBytes, bufSize, outLen));
