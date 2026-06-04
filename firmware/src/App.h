@@ -2,6 +2,7 @@
 #pragma once
 #include "Buttons.h"
 #include "CarouselSettings.h"
+#include "NetworkClient.h"
 #include "Protocol.h"
 #include "SnapshotCodec.h"
 
@@ -18,6 +19,11 @@ enum class LinkStatus : uint8_t {
     Connected,    // last fetch returned Ok
     NoBridge,     // BleClient::FetchResult::NoPeripheral
     LinkError,    // ConnectFailed or ReadFailed (after retry)
+    WiFiMissing,
+    APIMissing,
+    WiFiOffline,
+    APIAuth,
+    APIError,
 };
 
 enum class UsageMetric : uint8_t { Cost = 0, Tokens = 1 };
@@ -58,7 +64,7 @@ private:
     int detailIndex_ = -1;          // -1 = list; >=0 = showing that record's detail
     UsageMetric metric_ = UsageMetric::Cost;
     bool inCarouselSettings_ = false;
-    CarouselSettingRow settingRow_ = CarouselSettingRow::Autoplay;
+    CarouselSettingRow settingRow_ = CarouselSettingRow::Transport;
 };
 
 inline constexpr ViewId nextView(ViewId v) {
@@ -94,5 +100,24 @@ constexpr bool isSpendView(ViewId v) {
 }
 
 constexpr bool isBalanceView(ViewId v) { return v == ViewId::Balances; }
+
+inline LinkStatus linkStatusForFetchResult(TransportMode mode, NetworkClient::FetchResult result) {
+    switch (result) {
+        case NetworkClient::FetchResult::Ok:
+            return LinkStatus::Connected;
+        case NetworkClient::FetchResult::WiFiMissing:
+            return mode == TransportMode::WiFi ? LinkStatus::WiFiMissing : LinkStatus::LinkError;
+        case NetworkClient::FetchResult::APIMissing:
+            return mode == TransportMode::WiFi ? LinkStatus::APIMissing : LinkStatus::LinkError;
+        case NetworkClient::FetchResult::WiFiOffline:
+            return mode == TransportMode::WiFi ? LinkStatus::WiFiOffline : LinkStatus::NoBridge;
+        case NetworkClient::FetchResult::AuthFailed:
+            return mode == TransportMode::WiFi ? LinkStatus::APIAuth : LinkStatus::LinkError;
+        case NetworkClient::FetchResult::RequestFailed:
+        case NetworkClient::FetchResult::BadPayload:
+            return mode == TransportMode::WiFi ? LinkStatus::APIError : LinkStatus::LinkError;
+    }
+    return LinkStatus::LinkError;
+}
 
 }  // namespace stopwatch

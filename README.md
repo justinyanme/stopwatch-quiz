@@ -45,6 +45,33 @@ Power-cycle the watch. It will wake into the overview with cached or live data.
 
 If `make flash` fails with `Failed to connect to ESP32-S3: No serial data received`, the running firmware is drowning out esptool's sync on the USB-Serial-JTAG endpoint. Long-press BOOT until the screen goes off and the green LED blinks (firmware-controlled sleep — USB stays enumerated), then re-run `make flash`. `upload_protocol = esp-builtin` is a dead end on macOS because the kernel CDC kext blocks libusb from claiming the JTAG interface.
 
+## Mac mini WiFi mode
+
+By default the watch reaches the bridge over BLE. The bridge can also serve the watch over HTTP — useful for an always-on Mac mini reachable from anywhere — while keeping BLE as a manually selected fallback. The helper binds to loopback only and is intended to sit behind [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/):
+
+```yaml
+ingress:
+  - hostname: stopwatch.example.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404
+```
+
+Protect the hostname with a Cloudflare Access service-token policy. The watch sends `CF-Access-Client-Id`, `CF-Access-Client-Secret`, and `Authorization: Bearer <api token>` on every request. Print the local HTTP URL and redacted token metadata with `make serve-config`.
+
+Provision the watch over USB serial (open `make monitor` and type, one command per line):
+
+```text
+wifi ssid MyNetwork
+wifi password MyPassword
+api base-url https://stopwatch.example.com
+api cf-client-id <Cloudflare Access client id>
+api cf-client-secret <Cloudflare Access client secret>
+api token <bridge api token>
+config show
+```
+
+`config show` redacts secrets — it reports only presence, length, and last-updated metadata. Use the on-watch local settings to switch `Transport` between `WIFI` and `BLE`. In `WIFI` mode the watch does not scan for BLE.
+
 ## Daily use
 
 | Input | Action |
@@ -122,6 +149,14 @@ Providers without a key-queryable balance API can't be shown — e.g. MiniMax pa
 - **Bridge logs `codexbar binary not found in known locations`:** install CodexBar.app and run its **Install CLI** action, or symlink the CLI manually to `/opt/homebrew/bin/codexbar`.
 - **Watch doesn't wake on button press after sleep:** the GPIO numbers for KEYA/KEYB in `firmware/src/Power.cpp` are placeholders pending M5Stack StopWatch schematic verification. Update `kPinKeyA` and `kPinKeyB` and re-flash.
 - **Decode a snapshot off the wire:** `./bridge/.build/release/stopwatch-bridge decode-snapshot <hex>` pretty-prints the bytes.
+
+WiFi-mode status pills (only shown when `Transport` is `WIFI`):
+
+- **`wifi setup`:** WiFi SSID/password have not been provisioned over USB serial.
+- **`api setup`:** API base URL or the Cloudflare/token auth values have not been provisioned.
+- **`wifi offline`:** the watch cannot join the configured WiFi network.
+- **`api auth`:** Cloudflare Access or the bridge API token rejected the request (HTTP 401/403).
+- **`api error`:** the HTTP request failed (DNS/timeout/5xx) or returned malformed snapshot bytes.
 
 ## Layout
 

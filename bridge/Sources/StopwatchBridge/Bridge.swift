@@ -8,6 +8,7 @@ struct StopwatchBridge {
         switch cmd {
         case "run":               await runCommand(verbose: false)
         case "pair":              await runCommand(verbose: true)
+        case "serve-config":      printServeConfig()
         case "install":           exit(InstallCommand.run())
         case "decode-snapshot":
             guard args.count >= 2 else { usage(); exit(2) }
@@ -30,12 +31,31 @@ struct StopwatchBridge {
           run                       Foreground daemon (launchd invokes this)
           install                   Install as launchd agent
           pair                      Foreground with verbose logging
+          serve-config              Print HTTP server URL and redacted token metadata
           decode-snapshot <hex>     Print a captured snapshot as JSON
           set-key <id>              Store a provider API key in the Keychain (reads stdin)
           list-keys                 List provider ids with stored keys
           delete-key <id>           Remove a stored provider key
           version                   Print version
         """)
+    }
+
+    static func printServeConfig() {
+        do {
+            let cfg: Config
+            if let loaded = try Config.load() {
+                cfg = loaded
+            } else {
+                cfg = Config.makeDefault()
+                try Config.save(cfg)
+            }
+            print("url=http://\(cfg.httpBindHost):\(cfg.httpPort)")
+            let tokenStatus = cfg.apiToken.isEmpty ? "disabled" : "set"
+            print("apiToken=\(tokenStatus) length=\(cfg.apiToken.count)")
+        } catch {
+            FileHandle.standardError.write(Data("config error: \(error)\n".utf8))
+            exit(1)
+        }
     }
 
     static func runCommand(verbose: Bool) async {

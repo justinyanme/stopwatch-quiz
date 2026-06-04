@@ -4,22 +4,26 @@
 namespace stopwatch {
 
 enum class CarouselMotionMode : uint8_t { Iris = 0, Fade = 1, Instant = 2 };
+enum class TransportMode : uint8_t { BLE = 0, WiFi = 1 };
+
 enum class CarouselSettingRow : uint8_t {
-    Upright = 0,
-    Autoplay = 1,
-    Interval = 2,
-    Motion = 3,
-    Resume = 4,
+    Transport = 0,
+    Upright = 1,
+    Autoplay = 2,
+    Interval = 3,
+    Motion = 4,
+    Resume = 5,
 };
 
 struct CarouselSettings {
+    TransportMode transportMode = TransportMode::BLE;
     bool uprightEnabled = false;
     bool autoplayEnabled = true;
     uint16_t intervalSeconds = 10;
     CarouselMotionMode motionMode = CarouselMotionMode::Iris;
     uint16_t resumeSeconds = 20;
 
-    static constexpr uint8_t kRowCount = 5;
+    static constexpr uint8_t kRowCount = 6;
 
     static CarouselSettings defaults() { return CarouselSettings{}; }
 
@@ -31,12 +35,18 @@ struct CarouselSettings {
             motionMode != CarouselMotionMode::Instant) {
             motionMode = CarouselMotionMode::Iris;
         }
+        if (transportMode != TransportMode::BLE && transportMode != TransportMode::WiFi) {
+            transportMode = TransportMode::BLE;
+        }
     }
 
     void resetDefaults() { *this = defaults(); }
 
     void cycle(CarouselSettingRow row) {
         switch (row) {
+            case CarouselSettingRow::Transport:
+                transportMode = (transportMode == TransportMode::BLE) ? TransportMode::WiFi : TransportMode::BLE;
+                break;
             case CarouselSettingRow::Upright:
                 uprightEnabled = !uprightEnabled;
                 break;
@@ -57,6 +67,7 @@ struct CarouselSettings {
 
     static const char *rowLabel(CarouselSettingRow row) {
         switch (row) {
+            case CarouselSettingRow::Transport: return "TRANSPORT";
             case CarouselSettingRow::Upright:  return "UPRIGHT";
             case CarouselSettingRow::Autoplay: return "AUTOPLAY";
             case CarouselSettingRow::Interval: return "INTERVAL";
@@ -64,6 +75,14 @@ struct CarouselSettings {
             case CarouselSettingRow::Resume:   return "RESUME";
         }
         return "?";
+    }
+
+    static const char *transportLabel(TransportMode mode) {
+        switch (mode) {
+            case TransportMode::BLE:  return "BLE";
+            case TransportMode::WiFi: return "WIFI";
+        }
+        return "BLE";
     }
 
     static const char *motionLabel(CarouselMotionMode mode) {
@@ -113,13 +132,14 @@ private:
 
 inline CarouselSettingRow nextSettingRow(CarouselSettingRow row) {
     switch (row) {
+        case CarouselSettingRow::Transport: return CarouselSettingRow::Upright;
         case CarouselSettingRow::Upright:  return CarouselSettingRow::Autoplay;
         case CarouselSettingRow::Autoplay: return CarouselSettingRow::Interval;
         case CarouselSettingRow::Interval: return CarouselSettingRow::Motion;
         case CarouselSettingRow::Motion:   return CarouselSettingRow::Resume;
-        case CarouselSettingRow::Resume:   return CarouselSettingRow::Upright;
+        case CarouselSettingRow::Resume:   return CarouselSettingRow::Transport;
     }
-    return CarouselSettingRow::Upright;
+    return CarouselSettingRow::Transport;
 }
 
 }  // namespace stopwatch

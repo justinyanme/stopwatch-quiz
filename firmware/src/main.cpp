@@ -1,9 +1,7 @@
 // firmware/src/main.cpp
 #include <Arduino.h>
 #include <M5Unified.h>
-#include "soc/rtc_cntl_reg.h"
 #include "App.h"
-#include "BleClient.h"
 #include "Buttons.h"
 #include "CarouselController.h"
 #include "CarouselSettings.h"
@@ -11,9 +9,11 @@
 #include "OrientationController.h"
 #include "Power.h"
 #include "Renderer.h"
+#include "SerialProvisioning.h"
 #include "SnapshotCodec.h"
 #include "SnapshotStore.h"
 #include "Theme.h"
+#include "TransportClient.h"
 #include "Views/Overview.h"
 #include "Views/Provider.h"
 #include "Views/Spend.h"
@@ -28,10 +28,11 @@
 #include "UsageCodec.h"
 
 stopwatch::App         g_app;
-stopwatch::BleClient   g_ble;
+stopwatch::TransportClient g_transport;
 stopwatch::Renderer    g_renderer;
 stopwatch::Power       g_power;
 stopwatch::SnapshotStore g_store;
+stopwatch::SerialProvisioning g_provisioning;
 stopwatch::Snapshot    g_snap;
 stopwatch::CostSnapshot g_cost;
 bool                    g_costLoaded = false;
@@ -244,23 +245,22 @@ static void renderRefreshingOverlay(const char *label) {
     g_renderer.present();
 }
 
+static void setLinkStatusForFetchResult(stopwatch::NetworkClient::FetchResult result) {
+    g_app.setLinkStatus(stopwatch::linkStatusForFetchResult(g_carouselSettings.transportMode, result));
+}
+
 static bool fetchAndApply(uint8_t scope) {
     LoadingScope loading;
     uint8_t buf[stopwatch::kSnapshotSize];
     size_t len = 0;
-    auto rc = g_ble.fetch(scope, buf, sizeof(buf), len);
-    switch (rc) {
-        case stopwatch::BleClient::FetchResult::NoPeripheral:
-            g_app.setLinkStatus(stopwatch::LinkStatus::NoBridge);  return false;
-        case stopwatch::BleClient::FetchResult::ConnectFailed:
-        case stopwatch::BleClient::FetchResult::ReadFailed:
-            g_app.setLinkStatus(stopwatch::LinkStatus::LinkError); return false;
-        case stopwatch::BleClient::FetchResult::Ok:
-            break;
+    auto rc = g_transport.fetchSnapshot(g_carouselSettings, scope, buf, sizeof(buf), len);
+    if (rc != stopwatch::NetworkClient::FetchResult::Ok) {
+        setLinkStatusForFetchResult(rc);
+        return false;
     }
     stopwatch::Snapshot snap;
     if (stopwatch::decodeSnapshot(buf, len, snap) != stopwatch::DecodeResult::Ok) {
-        g_app.setLinkStatus(stopwatch::LinkStatus::LinkError);
+        setLinkStatusForFetchResult(stopwatch::NetworkClient::FetchResult::BadPayload);
         return false;
     }
     g_snap = snap;
@@ -273,16 +273,20 @@ static bool fetchCostAndApply() {
     LoadingScope loading;
     uint8_t buf[stopwatch::kCostSnapshotMaxSize];
     size_t len = 0;
-    if (g_ble.fetchCost(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) {
+    auto rc = g_transport.fetchCost(g_carouselSettings, buf, sizeof(buf), len);
+    if (rc != stopwatch::NetworkClient::FetchResult::Ok) {
+        setLinkStatusForFetchResult(rc);
         return false;
     }
     stopwatch::CostSnapshot cs;
     if (stopwatch::decodeCostSnapshot(buf, len, cs) != stopwatch::CostDecodeResult::Ok) {
+        setLinkStatusForFetchResult(stopwatch::NetworkClient::FetchResult::BadPayload);
         return false;
     }
     g_cost = cs;
     g_store.save("cost", buf, len);
     g_costLoaded = true;
+    g_app.setLinkStatus(stopwatch::LinkStatus::Connected);
     return true;
 }
 
@@ -298,12 +302,20 @@ static bool fetchBalancesAndApply() {
     LoadingScope loading;
     uint8_t buf[stopwatch::kBalanceSnapshotMaxSize];
     size_t len = 0;
-    if (g_ble.fetchBalances(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
+    auto rc = g_transport.fetchBalances(g_carouselSettings, buf, sizeof(buf), len);
+    if (rc != stopwatch::NetworkClient::FetchResult::Ok) {
+        setLinkStatusForFetchResult(rc);
+        return false;
+    }
     stopwatch::BalanceSnapshot bs;
-    if (stopwatch::decodeBalanceSnapshot(buf, len, bs) != stopwatch::BalanceDecodeResult::Ok) return false;
+    if (stopwatch::decodeBalanceSnapshot(buf, len, bs) != stopwatch::BalanceDecodeResult::Ok) {
+        setLinkStatusForFetchResult(stopwatch::NetworkClient::FetchResult::BadPayload);
+        return false;
+    }
     g_balance = bs;
     g_store.save("bal", buf, len);
     g_balanceLoaded = true;
+    g_app.setLinkStatus(stopwatch::LinkStatus::Connected);
     return true;
 }
 
@@ -311,13 +323,21 @@ static bool fetchUsageAndApply() {
     LoadingScope loading;
     uint8_t buf[stopwatch::kUsageSnapshotMaxSize];
     size_t len = 0;
-    if (g_ble.fetchUsage(buf, sizeof(buf), len) != stopwatch::BleClient::FetchResult::Ok) return false;
+    auto rc = g_transport.fetchUsage(g_carouselSettings, buf, sizeof(buf), len);
+    if (rc != stopwatch::NetworkClient::FetchResult::Ok) {
+        setLinkStatusForFetchResult(rc);
+        return false;
+    }
     stopwatch::UsageSnapshot us;
-    if (stopwatch::decodeUsageSnapshot(buf, len, us) != stopwatch::UsageDecodeResult::Ok) return false;
+    if (stopwatch::decodeUsageSnapshot(buf, len, us) != stopwatch::UsageDecodeResult::Ok) {
+        setLinkStatusForFetchResult(stopwatch::NetworkClient::FetchResult::BadPayload);
+        return false;
+    }
     if (!us.shouldCache()) return false;
     g_usage = us;
     g_store.save("usage", buf, len);
     g_usageLoaded = true;
+    g_app.setLinkStatus(stopwatch::LinkStatus::Connected);
     return true;
 }
 
@@ -383,36 +403,10 @@ static void enterSleepAndRefreshOnWake() {
     startViewAnim();   // play the entrance on wake
 }
 
-// USB-CDC RX handler: looks for the magic flash trigger. When matched, reboots
-// into the ROM download bootloader so `pio run -t upload` can flash without a
-// manual BOOT-button long-press. Streaming match across chunks of available().
-static void onUsbCdcRx(void *, esp_event_base_t, int32_t, void *) {
-    static constexpr const char kMagic[] = "STOPWATCH-DL\n";
-    static constexpr int kMagicLen = sizeof(kMagic) - 1;
-    static int matched = 0;
-    while (Serial.available() > 0) {
-        int b = Serial.read();
-        if (b < 0) break;
-        if (b == kMagic[matched]) {
-            ++matched;
-            if (matched == kMagicLen) {
-                Serial.println("[stopwatch-fw] flash trigger received; entering download mode");
-                Serial.flush();
-                REG_WRITE(RTC_CNTL_OPTION1_REG, 0x1);   // force next reset into ROM dl
-                esp_restart();
-            }
-        } else {
-            // Reset, but accept this byte as a potential new start.
-            matched = (b == kMagic[0]) ? 1 : 0;
-        }
-    }
-}
-
 void setup() {
     delay(2000);  // Let USB-CDC enumerate before first Serial.print
     Serial.begin(115200);
     Serial.setTxTimeoutMs(0);   // never block waiting for the host CDC reader
-    Serial.onEvent(ARDUINO_HW_CDC_RX_EVENT, onUsbCdcRx);
     Serial.println("\n[stopwatch-fw] boot: setup() start");
     auto cfg = M5.config();
     // M5Unified's auto-detect doesn't recognize the StopWatch on our generic
@@ -427,15 +421,16 @@ void setup() {
     g_renderer.begin();
     g_orientation.begin(millis(), stopwatch::DisplayOrientation::Deg0);
     g_renderer.setOrientation(stopwatch::DisplayOrientation::Deg0);
-    Serial.println("[stopwatch-fw] renderer ready; init store/app/power/ble");
+    Serial.println("[stopwatch-fw] renderer ready; init store/app/power/transport");
     g_store.begin();
+    g_provisioning.begin();
     if (!g_store.loadCarouselSettings(g_carouselSettings)) {
         g_carouselSettings = stopwatch::CarouselSettings::defaults();
     }
     g_carousel.begin(millis(), g_carouselSettings);
     g_app.begin();
     g_power.begin();
-    g_ble.begin();
+    g_transport.begin();
     Serial.println("[stopwatch-fw] all subsystems initialized");
 
     // Load last cached snapshots for instant first paint.
@@ -463,12 +458,12 @@ void setup() {
         stopwatch::decodeUsageSnapshot(ubuf, ulen, g_usage);
     }
     renderCurrent();
-    Serial.println("[stopwatch-fw] first render done; starting BLE fetch");
+    Serial.println("[stopwatch-fw] first render done; starting transport fetch");
 
     // Initial fetch: show "Connecting…" overlay while the BLE round-trip blocks.
     renderRefreshingOverlay("Connecting\xE2\x80\xA6");
     bool ok = fetchAndApply(0x00);
-    Serial.printf("[stopwatch-fw] BLE fetch returned %d (linkStatus=%d)\n",
+    Serial.printf("[stopwatch-fw] transport fetch returned %d (linkStatus=%d)\n",
                   (int)ok, (int)g_app.linkStatus());
     startViewAnim();   // first paint plays the entrance
 }
@@ -476,6 +471,7 @@ void setup() {
 void loop() {
     using namespace stopwatch;
     M5.update();
+    g_provisioning.poll();
     auto ev = pollButtons();
     if (ev != ButtonEvent::None) {
         g_power.noteActivity();

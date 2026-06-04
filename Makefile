@@ -1,4 +1,4 @@
-.PHONY: help build test install restart pair flash monitor clean bump-patch bump-minor bump-major
+.PHONY: help build test install restart pair serve-config flash monitor clean bump-patch bump-minor bump-major
 
 help:
 	@echo "Targets:"
@@ -7,6 +7,7 @@ help:
 	@echo "  install         Install bridge as launchd agent"
 	@echo "  restart         Restart the running bridge launchd agent (kickstart)"
 	@echo "  pair            Run bridge in foreground (verbose) to see the watch connect"
+	@echo "  serve-config    Print the local HTTP URL + redacted API-token metadata"
 	@echo "  flash           Flash firmware to a connected M5Stack StopWatch"
 	@echo "  monitor         Open serial monitor on the watch"
 	@echo "  clean           Remove build artifacts"
@@ -30,6 +31,9 @@ restart:
 
 pair: build
 	./bridge/.build/release/stopwatch-bridge pair
+
+serve-config: build
+	./bridge/.build/release/stopwatch-bridge serve-config
 
 flash:
 	python3 firmware/tools/zap.py || true
