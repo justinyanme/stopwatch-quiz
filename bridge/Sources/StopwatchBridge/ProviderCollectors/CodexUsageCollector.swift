@@ -65,6 +65,16 @@ public struct CodexUsageCollector: Sendable {
         var account: Account?
         var planType: String?
         enum CodingKeys: String, CodingKey { case rateLimit = "rate_limit", credits, account, planType = "plan_type" }
+        // Decode each field independently so one malformed/unexpected field
+        // (e.g. a string-typed credits balance) never discards the rate-limit
+        // percentages the rings actually need.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            rateLimit = try? c.decodeIfPresent(RateLimit.self, forKey: .rateLimit)
+            credits = try? c.decodeIfPresent(Credits.self, forKey: .credits)
+            account = try? c.decodeIfPresent(Account.self, forKey: .account)
+            planType = try? c.decodeIfPresent(String.self, forKey: .planType)
+        }
         struct RateLimit: Decodable {
             var primaryWindow: Window?
             var secondaryWindow: Window?
@@ -75,7 +85,21 @@ public struct CodexUsageCollector: Sendable {
             var resetAt: Int?       // unix epoch seconds
             enum CodingKeys: String, CodingKey { case usedPercent = "used_percent", resetAt = "reset_at" }
         }
-        struct Credits: Decodable { var balance: Double? }
+        // `balance` may arrive as a JSON number or a numeric string.
+        struct Credits: Decodable {
+            var balance: Double?
+            enum CodingKeys: String, CodingKey { case balance }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                if let d = try? c.decode(Double.self, forKey: .balance) {
+                    balance = d
+                } else if let s = try? c.decode(String.self, forKey: .balance) {
+                    balance = Double(s)
+                } else {
+                    balance = nil
+                }
+            }
+        }
         struct Account: Decodable {
             var planType: String?
             enum CodingKeys: String, CodingKey { case planType = "plan_type" }
